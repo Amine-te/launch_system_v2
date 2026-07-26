@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>LaunchOps · Purchase Order Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="./css/main.css">
+</head>
+
+<body>
+
+  <div id="app">
+    <div class="sidebar">
+      <div class="sidebar-logo">
+        <div class="brand-lockup" aria-label="Adient LaunchOps">
+          <img class="brand-image" src="./assets/adient.png" alt="Adient logo">
+          <div class="brand-copy"><div class="brand-product">LaunchOps</div><div class="brand-suite">PO Control Center</div></div>
+        </div>
+      </div>
+      <div class="role-switcher">
+        <label>Role</label>
+        <select id="roleSelect"></select>
+      </div>
+      <div class="nav-scroll" id="navScroll"></div>
+      <div class="sidebar-footer">
+        <div class="nav-item" onclick="navigate('profile')">
+          <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="8" r="4" />
+            <path d="M4 20c0-4 4-6 8-6s8 2 8 6" />
+          </svg>
+          Profile
+        </div>
+        <div class="sidebar-copy">Production workflow prototype · v2.0</div>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="topbar">
+        <button class="sidebar-toggle-btn" onclick="toggleSidebar()" aria-label="Toggle sidebar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 7h16M4 12h16M4 17h16" />
+          </svg>
+        </button>
+        <div class="topbar-logo"></div>
+        <div class="breadcrumb" id="breadcrumb"></div>
+        <div class="topbar-right">
+          <div class="global-search-wrap">
+            <div class="search-bar" onclick="openGlobalSearch()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="7" />
+                <path d="M21 21l-4-4" />
+              </svg>
+              <input id="globalSearchInput" type="text" placeholder="Search projects, POs, PN, materials…"
+                oninput="setGlobalSearch(this.value)" onclick="event.stopPropagation()" />
+            </div>
+            <div class="gs-panel" id="gsPanel"></div>
+          </div>
+          <div class="quick-actions" id="quickActionsWrap"></div>
+          <div class="notif-wrap">
+            <div class="notif-btn" onclick="toggleNotif()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.7 21a2 2 0 01-3.4 0" />
+              </svg>
+              <div class="notif-dot"></div>
+            </div>
+            <div class="notif-panel" id="notifPanel"></div>
+          </div>
+          <div class="avatar" id="topbarAvatar" onclick="navigate('profile')">AR</div>
+        </div>
+      </div>
+      <div class="content" id="content"></div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+      <h3 id="modalTitle">Confirm action</h3>
+      <p id="modalBody">Are you sure you want to proceed? This cannot be undone.</p>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeModal()">Cancel</button>
+        <button class="btn primary" id="modalConfirmBtn" onclick="confirmModalAction()">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./js/main.js"></script>
+</body>
+
+</html>

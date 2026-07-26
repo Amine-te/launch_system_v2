@@ -1,0 +1,31 @@
+/* ==========================================================================
+   upload.css
+   ========================================================================== */
+
+/* upload area + wizard */
+.upload-area {
+  border: 1.5px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 36px 20px;
+  text-align: center;
+  color: var(--ink-faint);
+  background: #FBFCFE;
+}
+
+.upload-area svg {
+  width: 30px;
+  height: 30px;
+  margin-bottom: 10px;
+  opacity: .5;
+}
+
+.upload-area .u-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  margin-bottom: 3px;
+}
+
+.upload-area .u-sub {
+  font-size: 12px;
+}

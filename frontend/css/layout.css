@@ -1,0 +1,234 @@
+/* ==========================================================================
+   layout.css
+   ========================================================================== */
+
+/* ===== MAIN ===== */
+.main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.topbar {
+  height: 56px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.sidebar-toggle-btn {
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--ink-soft);
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+
+.sidebar-toggle-btn:hover {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.sidebar-toggle-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--ink-faint);
+  font-weight: 500;
+}
+
+.breadcrumb .seg {
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.breadcrumb .seg:hover {
+  color: var(--primary);
+}
+
+.breadcrumb .seg.current {
+  color: var(--ink);
+  font-weight: 600;
+  cursor: default;
+}
+
+.breadcrumb .seg.current:hover {
+  color: var(--ink);
+}
+
+.breadcrumb .sep {
+  opacity: .6;
+}
+
+.nav-back-btn {
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  min-height:36px;
+  margin-right:5px;
+  padding:0 11px;
+  border:1px solid var(--border);
+  border-radius:9px;
+  background:#fff;
+  color:#111827;
+  font:600 13px var(--font-ui);
+  cursor:pointer;
+}
+
+.nav-back-btn:hover {
+  border-color:#86B8C5;
+  background:#F2F8F9;
+  color:var(--primary-dark);
+}
+
+.nav-back-btn .ui-icon {
+  width:16px;
+  height:16px;
+}
+
+@media (max-width: 760px) {
+  .nav-back-btn span { display:none; }
+  .nav-back-btn { width:36px; padding:0; justify-content:center; }
+  .breadcrumb .seg:not(.current), .breadcrumb .sep { display:none; }
+}
+
+.topbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 11px;
+  width: 220px;
+  color: var(--ink-faint);
+  font-size: 12.5px;
+  cursor: pointer;
+  position: relative;
+}
+
+.search-bar svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.search-bar input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  color: var(--ink);
+  width: 100%;
+}
+
+.search-bar input::placeholder {
+  color: var(--ink-faint);
+}
+
+.global-search-wrap {
+  position: relative;
+}
+
+.gs-panel {
+  position: absolute;
+  top: 42px;
+  left: 0;
+  width: 420px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, .14);
+  display: none;
+  z-index: 60;
+  overflow: hidden;
+  max-height: 440px;
+  flex-direction: column;
+}
+
+.gs-panel.open {
+  display: flex;
+}
+
+.gs-results {
+  overflow-y: auto;
+}
+
+.gs-group-label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--ink-faint);
+  font-weight: 700;
+  padding: 10px 16px 4px;
+}
+
+.gs-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px;
+  cursor: pointer;
+}
+
+.gs-row:hover {
+  background: var(--bg);
+}
+
+.gs-row .gs-ic {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.gs-row .gs-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.gs-row .gs-sub {
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
+.gs-empty {
+  padding: 24px 16px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--ink-faint);
+}

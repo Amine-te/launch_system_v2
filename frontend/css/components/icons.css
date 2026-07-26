@@ -1,0 +1,42 @@
+/* ==========================================================================
+   icons.css
+   ========================================================================== */
+
+/* Every generated icon receives this class. It prevents unscoped SVGs from
+   expanding to the size of their container while allowing component rules
+   such as empty states to deliberately override the dimensions. */
+.ui-icon { width:16px; height:16px; flex:0 0 auto; display:inline-block; vertical-align:middle; }
+.readonly-banner > .ui-icon { width:15px; height:15px; }
+.scope-label .ui-icon { width:14px; height:14px; margin-right:3px; }
+
+.production-flow { display:grid; grid-template-columns:repeat(5, minmax(150px, 1fr)); gap:0; margin:12px 0 20px; }
+.flow-step { position:relative; padding:13px 14px 13px 34px; background:#fff; border:1px solid var(--border); border-right:0; }
+.flow-step:first-child { padding-left:14px; border-radius:10px 0 0 10px; }
+.flow-step:last-child { border-right:1px solid var(--border); border-radius:0 10px 10px 0; }
+.flow-step::before { content:''; position:absolute; left:14px; top:18px; width:8px; height:8px; border-radius:50%; background:var(--step-color, #94A3B8); }
+.flow-step:first-child::before { left:14px; }
+.flow-step-name { font-weight:700; font-size:12px; }
+.flow-step-owner { color:var(--ink-faint); font-size:10.5px; margin-top:2px; }
+.flow-step-count { float:right; color:var(--step-color, var(--ink)); font:700 13px var(--font-mono); }
+
+.work-queue { display:grid; gap:12px; }
+.work-order {
+  display:grid; grid-template-columns:minmax(180px, 1.25fr) minmax(140px,.8fr) minmax(170px,1fr) auto;
+  align-items:center; gap:18px; padding:16px; border:1px solid var(--border); border-radius:11px; background:#fff;
+}
+.work-order.priority { border-left:4px solid var(--danger); }
+.wo-id { font:700 12px var(--font-mono); color:var(--primary-dark); }
+.wo-title { font-weight:700; margin-top:3px; }
+.wo-meta { color:var(--ink-faint); font-size:11.5px; margin-top:2px; }
+.qty-line { display:flex; justify-content:space-between; font-size:11px; color:var(--ink-soft); margin-bottom:6px; }
+.action-stack { display:flex; align-items:center; gap:8px; justify-content:flex-end; }
+.owner-chip { display:inline-flex; align-items:center; gap:6px; color:var(--ink-soft); font-size:11px; }
+.owner-chip::before { content:''; width:7px; height:7px; background:var(--primary); border-radius:50%; }
+
+.decision-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.decision-card { border:1px solid var(--border); border-radius:10px; padding:14px; background:#fff; }
+.decision-head { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:6px; }
+.decision-id { font:700 11px var(--font-mono); color:var(--primary-dark); }
+.decision-title { font-weight:700; font-size:12.5px; }
+.decision-body { color:var(--ink-soft); font-size:11.5px; line-height:1.55; }
+.decision-owner { color:var(--ink-faint); font-size:10.5px; margin-top:8px; }

@@ -1,0 +1,149 @@
+/* ==========================================================================
+   modal.css
+   ========================================================================== */
+
+/* modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, .45);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal-overlay.open {
+  display: flex;
+}
+
+.modal {
+  background: var(--card);
+  border-radius: 12px;
+  width: 420px;
+  padding: 22px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, .2);
+}
+
+.modal h3 {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.modal p {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin-bottom: 18px;
+  line-height: 1.5;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 50px 20px;
+  color: var(--ink-faint);
+}
+
+.empty-state svg {
+  width: 36px;
+  height: 36px;
+  margin-bottom: 12px;
+  opacity: .4;
+}
+
+.empty-state .e-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  margin-bottom: 4px;
+}
+
+.empty-state .e-sub {
+  font-size: 12.5px;
+  max-width: 320px;
+  margin: 0 auto;
+}
+
+.filter-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.filter-chip {
+  padding: 6px 12px;
+  border-radius: 100px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  cursor: pointer;
+  background: var(--card);
+}
+
+.filter-chip.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+.bar-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  height: 140px;
+  padding-top: 10px;
+}
+
+.bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.bar {
+  width: 100%;
+  border-radius: 5px 5px 2px 2px;
+  background: var(--primary);
+}
+
+.bar-label {
+  font-size: 10.5px;
+  color: var(--ink-faint);
+  font-weight: 600;
+}
+
+.bar-dual {
+  display: flex;
+  gap: 3px;
+  width: 100%;
+  align-items: flex-end;
+  height: 100%;
+}
+
+.bar-dual .bar {
+  flex: 1;
+}
+
+.readonly-banner {
+  background: var(--warning-light);
+  color: var(--warning);
+  border: 1px solid #FDE68A;
+  border-radius: 8px;
+  padding: 9px 13px;
+  font-size: 12.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}

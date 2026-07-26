@@ -1,0 +1,20 @@
+/* ==========================================================================
+   diff-table.css
+   ========================================================================== */
+
+/* diff table */
+.diff-add {
+  background: var(--success-light) !important;
+  color: var(--success);
+  font-weight: 700;
+}
+
+.diff-remove {
+  background: var(--danger-light) !important;
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.diff-same {
+  color: var(--ink-faint);
+}

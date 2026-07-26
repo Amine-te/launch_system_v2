@@ -1,0 +1,2745 @@
+// Launch System optimized logical schema for dbdiagram.io
+// Target: PostgreSQL 16+
+
+Project launch_system_optimized {
+  database_type: 'PostgreSQL'
+  Note: '''
+  Hardened logical design derived from the SRS and schema review. UUIDs are application/generated UUIDv7 where approved; timestamptz values are UTC instants; quantities and money use numeric(20,4). All FK deletes default to RESTRICT/NO ACTION in executable DDL.
+
+  DBML limitations: CHECK constraints, partial UNIQUE indexes, UNIQUE NULLS NOT DISTINCT, EXCLUDE constraints, generated expressions, deferred constraint triggers, RLS, append-only privileges, and hash-chain procedures are recorded in table/column notes and must be implemented in PostgreSQL migrations. Notes are requirements, not claims that dbdiagram enforces them.
+
+  Open decisions: OP-01 FGPN length/format; OP-02..04 role scope; OP-05 backward PO transitions; OP-06 multi-PO tie-breaking; OP-07 accepted confirmation evidence; OP-08 delivery methods; OP-09 coefficient policy; OP-10 receipt validator/SLA; OP-11 invoice applicability; OP-12 draft retention; OP-13 delivery-code TTL; DS-14 stock ownership scope; PI-15 stable PO/item identity. Provisional enum values must be seed-reviewed before production.
+
+  Core facts never reference reference_list_items. That generic catalog is restricted to non-authoritative extensions. Physical stock uses stock pools and locations; simulations snapshot inputs; PO/BOM/status/production/inventory/delivery/price/audit facts are immutable and corrected by new events or reversals.
+
+  Omitted projections/views (derive from immutable facts, never edit as source data): v_operational_dashboard, v_po_item_balance, v_simulation_shortfalls, v_launch_readiness, v_inventory_balance, v_stock_summary, v_actual_sales, v_period_revenue, v_forecast_vs_actual, v_project_lifecycle_audit, v_actionable_dashboard. Finance views include v_actual_sales, v_period_revenue, and v_forecast_vs_actual; transport cost is counted once per shipment.
+  '''
+}
+
+Enum user_status {
+  active
+  inactive
+  locked
+}
+
+Enum role_code {
+  plant_manager
+  launch_manager
+  launch_engineer
+  warehouse_team_leader
+  warehouse_personnel
+  system_administrator
+}
+
+Enum project_status {
+  active
+  inactive
+  closed
+}
+
+Enum document_status {
+  stored
+  generated
+  rejected
+  archived
+}
+
+Enum po_upload_status {
+  pending
+  accepted
+  rejected
+}
+
+Enum extraction_status {
+  pending
+  running
+  success
+  failed
+}
+
+Enum validation_status {
+  validated
+  mismatch
+  missing
+  not_applicable
+}
+
+Enum po_status {
+  unplanned
+  in_progress
+  done
+  packaged
+  delivered
+  cancelled
+}
+
+Enum bom_status {
+  draft
+  validated
+  pending_confirmation
+  active
+  replaced
+  rejected
+  archived
+}
+
+Enum bom_import_status {
+  success
+  failed
+  no_change
+  partial_success
+}
+
+Enum simulation_type {
+  single_po
+  multi_po
+  future_stock
+}
+
+Enum simulation_result {
+  full_possible
+  partial_possible
+  impossible
+  incomplete
+}
+
+Enum launch_operation_status {
+  draft
+  approved
+  finalized
+  cancelled
+  needs_review
+}
+
+Enum signed_document_status {
+  pending
+  validated
+  rejected
+}
+
+Enum customer_delivery_status {
+  pending
+  confirmed
+  delivered
+  cancelled
+}
+
+Enum alert_status {
+  open
+  acknowledged
+  resolved
+}
+
+Enum forecast_status {
+  draft
+  active
+  archived
+}
+
+Enum change_type {
+  added
+  removed
+  modified
+  unchanged
+}
+
+Enum comparison_scope {
+  header
+  item
+}
+
+Enum transition_direction {
+  forward
+  backward
+}
+
+Enum material_status {
+  active
+  inactive
+  obsolete
+}
+
+Enum simulation_item_result {
+  full_possible
+  partial_possible
+  impossible
+  nothing_remaining
+}
+
+Enum impact_review_status {
+  pending
+  approved
+  rejected
+}
+
+Enum arrival_status {
+  planned
+  partially_received
+  received
+  cancelled
+}
+
+Enum inventory_event_type {
+  reception
+  reception_correction
+  cutman_import
+  wip_adjustment
+  transit_added
+  transit_received
+  warehouse_delivery
+  reversal
+  manual_adjustment
+}
+
+Enum cutman_format {
+  xlsx
+  sql_data
+}
+
+Enum import_status {
+  pending
+  success
+  failed
+  partial_success
+}
+
+Enum location_type {
+  warehouse
+  wip
+  transit
+  manufacturing
+  virtual
+}
+
+Enum stock_pool_type {
+  warehouse
+  wip
+  transit
+  manufacturing
+  planned
+}
+
+Enum stock_pool_scope {
+  shared
+  project
+}
+
+Enum warehouse_instruction_status {
+  draft
+  ready
+  code_issued
+  document_generated
+  awaiting_receipt
+  completed
+  cancelled
+}
+
+Enum customer_instruction_status {
+  draft
+  generated
+  partially_shipped
+  completed
+  cancelled
+}
+
+Enum invoice_status {
+  pending
+  received
+  validated
+  rejected
+  not_required
+}
+
+Enum key_status {
+  active
+  retired
+  revoked
+}
+
+Enum idempotency_status {
+  in_progress
+  completed
+  failed
+}
+
+Enum alert_severity {
+  info
+  warning
+  critical
+}
+
+Enum audit_package_status {
+  queued
+  generating
+  completed
+  failed
+}
+
+Enum reference_scope {
+  global
+  project
+}
+
+Enum po_field_key {
+  jit_customer
+  contact_information
+  document_date
+  delivery_date
+  item
+  fgpn
+  development_level
+  quantity
+  unit_price
+  reason_of_purchase_order
+  purchase_order_number
+  delivery_week
+  car_model
+  engineering_phase_level
+  color_code
+  description
+  trim_code
+  purchase_order_level
+  pickup_date
+  pickup_week
+}
+
+// Module: iam
+Table roles {
+  id smallint [pk]
+  code role_code [unique, not null]
+  name varchar(80) [not null]
+  active boolean [not null, default: true]
+}
+
+// Module: iam
+Table permissions {
+  id smallint [pk]
+  code varchar(80) [unique, not null, note: 'Extensible permission code governed by seeded policy data.']
+  name varchar(120) [not null]
+  description text
+  active boolean [not null, default: true]
+}
+
+// Module: iam
+Table role_permissions {
+  role_id smallint [not null]
+  permission_id smallint [not null]
+  granted_by uuid
+  granted_at timestamptz [not null]
+
+  indexes {
+    (role_id, permission_id) [pk, name: 'pk_role_permissions_role_id_permission_id']
+    role_id [name: 'ix_role_permissions_role_id']
+    permission_id [name: 'ix_role_permissions_permission_id']
+    granted_by [name: 'ix_role_permissions_granted_by']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): rows are append-only policy data.
+  Append-only enforcement requires privileges plus a guard trigger; DBML cannot enforce UPDATE/DELETE/TRUNCATE revocation.
+  '''
+}
+
+// Module: iam
+Table users {
+  id uuid [pk]
+  current_role_id smallint
+  username citext [unique, not null]
+  password_hash text [not null]
+  status user_status [not null]
+  failed_login_count smallint [not null, default: 0]
+  locked_at timestamptz
+  deactivated_at timestamptz
+  row_version bigint [not null, default: 1]
+  created_at timestamptz [not null]
+
+  indexes {
+    current_role_id [name: 'ix_users_current_role_id']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): active user has exactly one open role assignment.
+  CHECK/constraint-trigger rule (documentary in DBML): current_role_id is a trigger-checked cache.
+  '''
+}
+
+// Module: iam
+Table user_role_assignments {
+  id uuid [pk]
+  user_id uuid [not null]
+  role_id smallint [not null]
+  assigned_by uuid [not null]
+  assigned_at timestamptz [not null]
+  ended_by uuid
+  ended_at timestamptz
+  reason text
+
+  indexes {
+    user_id [name: 'ix_user_role_assignments_user_id']
+    role_id [name: 'ix_user_role_assignments_role_id']
+    assigned_by [name: 'ix_user_role_assignments_assigned_by']
+    ended_by [name: 'ix_user_role_assignments_ended_by']
+  }
+
+  Note: '''
+  PostgreSQL partial UNIQUE rule (not expressible in DBML): user_id WHERE ended_at IS NULL.
+  CHECK/constraint-trigger rule (documentary in DBML): ended_at>assigned_at when set; immutable history.
+  Append-only enforcement requires privileges plus a guard trigger; DBML cannot enforce UPDATE/DELETE/TRUNCATE revocation.
+  '''
+}
+
+// Module: iam
+Table user_sessions {
+  id uuid [pk]
+  user_id uuid [not null]
+  token_digest bytea [unique, not null]
+  created_at timestamptz [not null]
+  last_seen_at timestamptz [not null]
+  expires_at timestamptz [not null]
+  revoked_at timestamptz
+  ip_address inet
+  user_agent text
+
+  indexes {
+    user_id [name: 'ix_user_sessions_user_id']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): expires_at > created_at.
+  '''
+}
+
+// Module: iam
+Table login_events {
+  id bigint [pk, increment]
+  user_id uuid
+  username_entered citext [not null]
+  success boolean [not null]
+  failure_reason varchar(80)
+  occurred_at timestamptz [not null]
+  ip_address inet
+
+  indexes {
+    (username_entered, occurred_at) [name: 'ix_login_events_username_entered_occurred_at']
+    user_id [name: 'ix_login_events_user_id']
+  }
+}
+
+// Module: iam
+Table customers {
+  id uuid [pk]
+  customer_code varchar(40) [unique, not null]
+  legal_name varchar(180) [not null]
+  display_name varchar(150) [not null]
+  active boolean [not null, default: true]
+  row_version bigint [not null, default: 1]
+  created_at timestamptz [not null]
+}
+
+// Module: iam
+Table customer_contacts {
+  id uuid [pk]
+  customer_id uuid [not null]
+  contact_code varchar(60) [not null]
+  full_name varchar(150) [not null]
+  email citext
+  phone varchar(40)
+  active boolean [not null, default: true]
+  row_version bigint [not null, default: 1]
+
+  indexes {
+    (customer_id, contact_code) [unique, name: 'unique_customer_contacts_customer_id_contact_code']
+    customer_id [name: 'ix_customer_contacts_customer_id']
+  }
+}
+
+// Module: iam
+Table manufacturing_receivers {
+  id uuid [pk]
+  receiver_code varchar(60) [unique, not null]
+  user_id uuid
+  full_name varchar(150) [not null]
+  organization varchar(150)
+  active boolean [not null, default: true]
+  row_version bigint [not null, default: 1]
+
+  indexes {
+    user_id [name: 'ix_manufacturing_receivers_user_id']
+  }
+}
+
+// Module: iam
+Table delivery_methods {
+  id uuid [pk]
+  method_code varchar(40) [unique, not null]
+  name varchar(120) [not null]
+  active boolean [not null, default: true]
+  row_version bigint [not null, default: 1]
+}
+
+// Module: iam
+Table material_types {
+  id uuid [pk]
+  type_code varchar(40) [unique, not null]
+  name varchar(120) [not null]
+  active boolean [not null, default: true]
+  row_version bigint [not null, default: 1]
+}
+
+// Module: iam
+Table projects {
+  id uuid [pk]
+  project_code varchar(30) [unique, not null]
+  project_name varchar(150) [not null]
+  customer_id uuid [not null]
+  status project_status [not null]
+  created_by uuid [not null]
+  row_version bigint [not null, default: 1]
+  created_at timestamptz [not null]
+  updated_at timestamptz [not null]
+
+  indexes {
+    customer_id [name: 'ix_projects_customer_id']
+    created_by [name: 'ix_projects_created_by']
+  }
+}
+
+// Module: iam
+Table project_development_levels {
+  id uuid [pk]
+  project_id uuid [not null]
+  level_code varchar(40) [not null]
+  name varchar(120) [not null]
+  sort_order smallint [not null]
+  active boolean [not null, default: true]
+  row_version bigint [not null, default: 1]
+
+  indexes {
+    (project_id, level_code) [unique, name: 'unique_project_development_levels_project_id_level_code']
+    project_id [name: 'ix_project_development_levels_project_id']
+  }
+
+  Note: '''
+  RLS policy required on project_id; DBML does not implement row-level security.
+  '''
+}
+
+// Module: iam
+Table project_assignments {
+  id uuid [pk]
+  project_id uuid [not null]
+  user_id uuid [not null]
+  assigned_by uuid [not null]
+  assigned_at timestamptz [not null]
+  unassigned_by uuid
+  unassigned_at timestamptz
+  unassignment_reason text
+
+  indexes {
+    project_id [name: 'ix_project_assignments_project_id']
+    user_id [name: 'ix_project_assignments_user_id']
+    assigned_by [name: 'ix_project_assignments_assigned_by']
+    unassigned_by [name: 'ix_project_assignments_unassigned_by']
+  }
+
+  Note: '''
+  PostgreSQL partial UNIQUE rule (not expressible in DBML): (project_id,user_id) WHERE unassigned_at IS NULL.
+  CHECK/constraint-trigger rule (documentary in DBML): unassigned_at>assigned_at when set; immutable history.
+  Append-only enforcement requires privileges plus a guard trigger; DBML cannot enforce UPDATE/DELETE/TRUNCATE revocation.
+  RLS policy required on project_id; DBML does not implement row-level security.
+  '''
+}
+
+// Module: iam
+Table reference_list_types {
+  id smallint [pk]
+  code varchar(40) [unique, not null]
+  name varchar(100) [not null]
+  scope reference_scope [not null]
+  active boolean [not null, default: true]
+}
+
+// Module: iam
+Table reference_list_items {
+  id uuid [pk]
+  type_id smallint [not null]
+  project_id uuid
+  code varchar(80)
+  label varchar(150) [not null]
+  active boolean [not null, default: true]
+  created_by uuid [not null]
+  row_version bigint [not null, default: 1]
+  created_at timestamptz [not null]
+  deactivated_at timestamptz
+
+  indexes {
+    type_id [name: 'ix_reference_list_items_type_id']
+    project_id [name: 'ix_reference_list_items_project_id']
+    created_by [name: 'ix_reference_list_items_created_by']
+  }
+
+  Note: '''
+  PostgreSQL UNIQUE NULLS NOT DISTINCT rule (not expressible in DBML): (type_id,project_id,code).
+  CHECK/constraint-trigger rule (documentary in DBML): non-authoritative extension values only.
+  RLS policy required on project_id; DBML does not implement row-level security.
+  '''
+}
+
+// Module: iam
+Table fgpns {
+  id uuid [pk]
+  project_id uuid [not null]
+  fgpn_code varchar(32) [not null]
+  description varchar(50)
+  active boolean [not null, default: true]
+  row_version bigint [not null, default: 1]
+
+  indexes {
+    (project_id, fgpn_code) [unique, name: 'unique_fgpns_project_id_fgpn_code']
+    project_id [name: 'ix_fgpns_project_id']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): format validated by approved project rule.
+  RLS policy required on project_id; DBML does not implement row-level security.
+  '''
+}
+
+// Module: iam
+Table document_encryption_keys {
+  id uuid [pk]
+  provider varchar(40) [not null]
+  kms_key_ref varchar(255) [not null]
+  key_version varchar(80) [not null]
+  algorithm varchar(40) [not null]
+  status key_status [not null]
+  activated_at timestamptz [not null]
+  retired_at timestamptz
+
+  indexes {
+    (kms_key_ref, key_version) [unique, name: 'unique_document_encryption_keys_kms_key_ref_key_version']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): external KMS reference only; never key material.
+  '''
+}
+
+// Module: iam
+Table documents {
+  id uuid [pk]
+  document_type varchar(40) [not null, note: 'Extensible document-type code; MIME/extension/content checks belong in PostgreSQL DDL and upload validation.']
+  file_name varchar(255) [not null]
+  mime_type varchar(100) [not null]
+  byte_size bigint [not null]
+  storage_key text [unique, not null]
+  checksum_sha256 bytea [not null]
+  encryption_key_id uuid [not null]
+  retention_class varchar(60) [not null]
+  retain_until timestamptz
+  legal_hold boolean [not null, default: false]
+  status document_status [not null]
+  uploaded_by uuid
+  uploaded_at timestamptz [not null]
+
+  indexes {
+    checksum_sha256 [name: 'ix_documents_checksum_sha256']
+    encryption_key_id [name: 'ix_documents_encryption_key_id']
+    uploaded_by [name: 'ix_documents_uploaded_by']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): byte_size>0; purge blocked by hold/retention.
+  '''
+}
+
+// Module: iam
+Table document_signatures {
+  id uuid [pk]
+  document_id uuid [not null]
+  manufacturing_receiver_id uuid
+  signer_user_id uuid
+  signer_name_snapshot varchar(150) [not null]
+  signature_role varchar(80) [not null]
+  uploaded_by uuid [not null]
+  signed_at timestamptz
+  recorded_at timestamptz [not null]
+
+  indexes {
+    (document_id, signature_role, signer_name_snapshot) [unique, name: 'unique_document_signatures_document_id_signature_role__b3784636']
+    document_id [name: 'ix_document_signatures_document_id']
+    manufacturing_receiver_id [name: 'ix_document_signatures_manufacturing_receiver_id']
+    signer_user_id [name: 'ix_document_signatures_signer_user_id']
+    uploaded_by [name: 'ix_document_signatures_uploaded_by']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): exactly one typed signer identity when known.
+  '''
+}
+
+// Module: cross
+Table system_settings {
+  setting_key varchar(100) [pk]
+  setting_value jsonb [not null]
+  value_schema_version integer [not null]
+  updated_by uuid [not null]
+  updated_at timestamptz [not null]
+  row_version bigint [not null, default: 1]
+
+  indexes {
+    updated_by [name: 'ix_system_settings_updated_by']
+  }
+}
+
+// Module: po
+Table po_uploads {
+  id uuid [pk]
+  project_id uuid [not null]
+  document_id uuid [not null]
+  uploaded_by uuid [not null]
+  uploaded_at timestamptz [not null]
+  status po_upload_status [not null]
+  rejection_reason text
+
+  indexes {
+    document_id [unique, name: 'unique_po_uploads_document_id']
+    project_id [name: 'ix_po_uploads_project_id']
+    uploaded_by [name: 'ix_po_uploads_uploaded_by']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): document is PDF; stored even if rejected.
+  RLS policy required on project_id; DBML does not implement row-level security.
+  '''
+}
+
+// Module: po
+Table po_extraction_runs {
+  id uuid [pk]
+  po_upload_id uuid [not null]
+  attempt_no smallint [not null]
+  parser_name varchar(80) [not null]
+  parser_version varchar(40) [not null]
+  status extraction_status [not null]
+  started_at timestamptz [not null]
+  completed_at timestamptz
+  error_message text
+
+  indexes {
+    (po_upload_id, attempt_no) [unique, name: 'unique_po_extraction_runs_po_upload_id_attempt_no']
+    po_upload_id [name: 'ix_po_extraction_runs_po_upload_id']
+  }
+}
+
+// Module: po
+Table po_extracted_values {
+  id uuid [pk]
+  extraction_run_id uuid [not null]
+  line_ordinal integer [not null, default: 0]
+  field_key po_field_key [not null]
+  raw_text text
+  extracted_value text
+  corrected_value text
+  final_value text
+  validation_status validation_status [not null]
+  validation_message text
+  expected_value text
+  corrected_by uuid
+  corrected_at timestamptz
+
+  indexes {
+    (extraction_run_id, line_ordinal, field_key) [unique, name: 'unique_po_extracted_values_extraction_run_id_line_ordi_226f04a5']
+    extraction_run_id [name: 'ix_po_extracted_values_extraction_run_id']
+    corrected_by [name: 'ix_po_extracted_values_corrected_by']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): line_ordinal=0 header; >0 line.
+  '''
+}
+
+// Module: po
+Table purchase_orders {
+  id uuid [pk]
+  project_id uuid [not null]
+  po_number char(10) [not null]
+  current_version_id uuid
+  current_status po_status [not null]
+  created_by uuid [not null]
+  created_at timestamptz [not null]
+  row_version bigint [not null, default: 1]
+
+  indexes {
+    (project_id, po_number) [unique, name: 'unique_purchase_orders_project_id_po_number']
+    project_id [name: 'ix_purchase_orders_project_id']
+    current_version_id [name: 'ix_purchase_orders_current_version_id']
+    created_by [name: 'ix_purchase_orders_created_by']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): length(po_number)=10.
+  RLS policy required on project_id; DBML does not implement row-level security.
+  '''
+}
+
+// Module: po
+Table purchase_order_items {
+  id uuid [pk]
+  purchase_order_id uuid [not null]
+  stable_item_key uuid [unique, not null]
+  external_item_key varchar(80)
+  created_at timestamptz [not null]
+  retired_at timestamptz
+
+  indexes {
+    (purchase_order_id, external_item_key) [name: 'ix_purchase_order_items_purchase_order_id_external_item_key']
+    purchase_order_id [name: 'ix_purchase_order_items_purchase_order_id']
+  }
+}
+
+// Module: po
+Table purchase_order_versions {
+  id uuid [pk]
+  purchase_order_id uuid [not null]
+  po_upload_id uuid [not null]
+  version_no integer [not null]
+  customer_id uuid [not null]
+  customer_contact_id uuid [not null]
+  customer_code_snapshot varchar(40) [not null]
+  customer_name_snapshot varchar(180) [not null]
+  contact_name_snapshot varchar(150) [not null]
+  contact_details_snapshot jsonb [not null]
+  document_date date [not null]
+  reason_of_po text [not null]
+  car_model varchar(80)
+  confirmed_by uuid [not null]
+  confirmed_at timestamptz [not null]
+  content_hash bytea [not null]
+
+  indexes {
+    (purchase_order_id, version_no) [unique, name: 'unique_purchase_order_versions_purchase_order_id_version_no']
+    (purchase_order_id, content_hash) [unique, name: 'unique_purchase_order_versions_purchase_order_id_content_hash']
+    purchase_order_id [name: 'ix_purchase_order_versions_purchase_order_id']
+    po_upload_id [name: 'ix_purchase_order_versions_po_upload_id']
+    customer_id [name: 'ix_purchase_order_versions_customer_id']
+    customer_contact_id [name: 'ix_purchase_order_versions_customer_contact_id']
+    confirmed_by [name: 'ix_purchase_order_versions_confirmed_by']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): contact belongs customer; customer matches project.
+  CHECK/constraint-trigger rule (documentary in DBML): immutable: no UPDATE/DELETE.
+  Append-only enforcement requires privileges plus a guard trigger; DBML cannot enforce UPDATE/DELETE/TRUNCATE revocation.
+  '''
+}
+
+// Module: po
+Table purchase_order_version_items {
+  id uuid [pk]
+  po_version_id uuid [not null]
+  po_item_id uuid [not null]
+  line_number integer [not null]
+  item varchar(80) [not null]
+  part_number char(7)
+  fgpn_id uuid [not null]
+  fgpn_code_snapshot varchar(32) [not null]
+  development_level_id uuid [not null]
+  development_level_code_snapshot varchar(40) [not null]
+  engineering_phase_level varchar(40)
+  color_code char(4)
+  description varchar(50)
+  trim_code varchar(40)
+  po_level varchar(6)
+  quantity numeric(20,4) [not null]
+  unit_price numeric(20,4) [not null]
+  delivery_date date [not null]
+  pickup_date date
+  row_hash bytea [not null]
+
+  indexes {
+    (po_version_id, po_item_id) [unique, name: 'unique_purchase_order_version_items_po_version_id_po_item_id']
+    (po_version_id, line_number) [unique, name: 'unique_purchase_order_version_items_po_version_id_line_number']
+    po_version_id [name: 'ix_purchase_order_version_items_po_version_id']
+    po_item_id [name: 'ix_purchase_order_version_items_po_item_id']
+    fgpn_id [name: 'ix_purchase_order_version_items_fgpn_id']
+    development_level_id [name: 'ix_purchase_order_version_items_development_level_id']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): FGPN/development level belong to PO project.
+  CHECK/constraint-trigger rule (documentary in DBML): quantity>0 AND unit_price>=0; immutable.
+  Append-only enforcement requires privileges plus a guard trigger; DBML cannot enforce UPDATE/DELETE/TRUNCATE revocation.
+  '''
+}
+
+// Module: po
+Table po_version_comparisons {
+  id uuid [pk]
+  purchase_order_id uuid [not null]
+  version_a_id uuid [not null]
+  version_b_id uuid [not null]
+  compared_by uuid [not null]
+  compared_at timestamptz [not null]
+
+  indexes {
+    (version_a_id, version_b_id) [unique, name: 'unique_po_version_comparisons_version_a_id_version_b_id']
+    purchase_order_id [name: 'ix_po_version_comparisons_purchase_order_id']
+    version_a_id [name: 'ix_po_version_comparisons_version_a_id']
+    version_b_id [name: 'ix_po_version_comparisons_version_b_id']
+    compared_by [name: 'ix_po_version_comparisons_compared_by']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): versions differ and belong to same PO.
+  '''
+}
+
+// Module: po
+Table po_version_comparison_items {
+  id uuid [pk]
+  comparison_id uuid [not null]
+  po_item_id uuid
+  scope comparison_scope [not null]
+  field_key po_field_key [not null]
+  value_a text
+  value_b text
+  change_type change_type [not null]
+
+  indexes {
+    comparison_id [name: 'ix_po_version_comparison_items_comparison_id']
+    po_item_id [name: 'ix_po_version_comparison_items_po_item_id']
+  }
+
+  Note: '''
+  PostgreSQL UNIQUE NULLS NOT DISTINCT rule (not expressible in DBML): (comparison_id,po_item_id,scope,field_key).
+  '''
+}
+
+// Module: po
+Table po_allowed_status_transitions {
+  id smallint [pk]
+  from_status po_status [not null]
+  to_status po_status [not null]
+  direction transition_direction [not null]
+  requires_reason boolean [not null]
+  active boolean [not null, default: true]
+
+  indexes {
+    (from_status, to_status) [unique, name: 'unique_po_allowed_status_transitions_from_status_to_status']
+  }
+}
+
+// Module: po
+Table po_status_transition_roles {
+  transition_id smallint [not null]
+  role_id smallint [not null]
+
+  indexes {
+    (transition_id, role_id) [pk, name: 'pk_po_status_transition_roles_transition_id_role_id']
+    transition_id [name: 'ix_po_status_transition_roles_transition_id']
+    role_id [name: 'ix_po_status_transition_roles_role_id']
+  }
+}
+
+// Module: po
+Table po_status_history {
+  id uuid [pk]
+  purchase_order_id uuid [not null]
+  sequence_no bigint [not null]
+  from_status po_status
+  to_status po_status [not null]
+  transition_id smallint [not null]
+  reason text
+  changed_by uuid [not null]
+  changed_at timestamptz [not null]
+
+  indexes {
+    (purchase_order_id, sequence_no) [unique, name: 'unique_po_status_history_purchase_order_id_sequence_no']
+    purchase_order_id [name: 'ix_po_status_history_purchase_order_id']
+    transition_id [name: 'ix_po_status_history_transition_id']
+    changed_by [name: 'ix_po_status_history_changed_by']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): reason required per transition.
+  CHECK/constraint-trigger rule (documentary in DBML): immutable: no UPDATE/DELETE.
+  Append-only enforcement requires privileges plus a guard trigger; DBML cannot enforce UPDATE/DELETE/TRUNCATE revocation.
+  '''
+}
+
+// Module: po
+Table production_events {
+  id uuid [pk]
+  project_id uuid [not null]
+  launch_operation_id uuid [not null]
+  idempotency_key uuid [unique, not null]
+  source_system varchar(40) [not null]
+  source_event_key varchar(120) [not null]
+  payload_hash bytea [not null]
+  evidence_document_id uuid
+  recorded_by uuid [not null]
+  occurred_at timestamptz [not null]
+  recorded_at timestamptz [not null]
+
+  indexes {
+    (source_system, source_event_key) [unique, name: 'unique_production_events_source_system_source_event_key']
+    project_id [name: 'ix_production_events_project_id']
+    launch_operation_id [name: 'ix_production_events_launch_operation_id']
+    evidence_document_id [name: 'ix_production_events_evidence_document_id']
+    recorded_by [name: 'ix_production_events_recorded_by']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): immutable; key reuse requires same payload hash.
+  Append-only enforcement requires privileges plus a guard trigger; DBML cannot enforce UPDATE/DELETE/TRUNCATE revocation.
+  RLS policy required on project_id; DBML does not implement row-level security.
+  '''
+}
+
+// Module: po
+Table production_event_items {
+  id uuid [pk]
+  production_event_id uuid [not null]
+  po_item_id uuid [not null]
+  line_no integer [not null]
+  quantity_produced numeric(20,4) [not null]
+
+  indexes {
+    (production_event_id, line_no) [unique, name: 'unique_production_event_items_production_event_id_line_no']
+    (production_event_id, po_item_id) [unique, name: 'unique_production_event_items_production_event_id_po_item_id']
+    production_event_id [name: 'ix_production_event_items_production_event_id']
+    po_item_id [name: 'ix_production_event_items_po_item_id']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): quantity_produced>0; immutable partial-production fact.
+  Append-only enforcement requires privileges plus a guard trigger; DBML cannot enforce UPDATE/DELETE/TRUNCATE revocation.
+  '''
+}
+
+// Module: bom
+Table materials {
+  id uuid [pk]
+  material_part_number varchar(10) [unique, not null]
+  description varchar(50) [not null]
+  material_type_id uuid [not null]
+  status material_status [not null]
+  base_uom varchar(12) [not null]
+  row_version bigint [not null, default: 1]
+
+  indexes {
+    (material_part_number, description) [type: gin, name: 'ix_materials_material_part_number_description']
+    material_type_id [name: 'ix_materials_material_type_id']
+  }
+
+  Note: '''
+  PostgreSQL index detail: GIN with gin_trgm_ops on material_part_number and description.
+  '''
+}
+
+// Module: bom
+Table bom_imports {
+  id uuid [pk]
+  project_id uuid [not null]
+  source_document_id uuid [not null]
+  source_format varchar(8) [not null]
+  template_version varchar(30) [not null]
+  file_hash bytea [not null]
+  imported_by uuid [not null]
+  imported_at timestamptz [not null]
+  status bom_import_status [not null]
+  error_summary text
+
+  indexes {
+    (project_id, file_hash) [unique, name: 'unique_bom_imports_project_id_file_hash']
+    project_id [name: 'ix_bom_imports_project_id']
+    source_document_id [name: 'ix_bom_imports_source_document_id']
+    imported_by [name: 'ix_bom_imports_imported_by']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): source_format='xlsx'.
+  RLS policy required on project_id; DBML does not implement row-level security.
+  '''
+}
+
+// Module: bom
+Table bom_import_rows {
+  id uuid [pk]
+  bom_import_id uuid [not null]
+  sheet_name varchar(80) [not null]
+  row_number integer [not null]
+  raw_values jsonb [not null]
+  normalized_values jsonb
+  validation_errors jsonb [not null, default: '[]']
+
+  indexes {
+    (bom_import_id, sheet_name, row_number) [unique, name: 'unique_bom_import_rows_bom_import_id_sheet_name_row_number']
+    bom_import_id [name: 'ix_bom_import_rows_bom_import_id']
+  }
+}
+
+// Module: bom
+Table bom_revisions {
+  id uuid [pk]
+  project_id uuid [not null]
+  created_from_import_id uuid [not null]
+  revision_no integer [not null]
+  source_revision_code varchar(40)
+  status bom_status [not null]
+  snapshot_hash bytea [not null]
+  confirmed_by uuid
+  confirmed_at timestamptz
+  created_at timestamptz [not null]
+  activated_at timestamptz
+  replaced_at timestamptz
+
+  indexes {
+    (project_id, revision_no) [unique, name: 'unique_bom_revisions_project_id_revision_no']
+    (project_id, snapshot_hash) [unique, name: 'unique_bom_revisions_project_id_snapshot_hash']
+    project_id [name: 'ix_bom_revisions_project_id']
+    created_from_import_id [name: 'ix_bom_revisions_created_from_import_id']
+    confirmed_by [name: 'ix_bom_revisions_confirmed_by']
+  }
+
+  Note: '''
+  PostgreSQL partial UNIQUE rule (not expressible in DBML): project_id WHERE status='active'.
+  CHECK/constraint-trigger rule (documentary in DBML): confirmed_by/at together; active requires confirmation.
+  CHECK/constraint-trigger rule (documentary in DBML): immutable after validation.
+  Append-only enforcement requires privileges plus a guard trigger; DBML cannot enforce UPDATE/DELETE/TRUNCATE revocation.
+  RLS policy required on project_id; DBML does not implement row-level security.
+  '''
+}
+
+// Module: bom
+Table bom_revision_items {
+  id uuid [pk]
+  bom_revision_id uuid [not null]
+  fgpn_id uuid [not null]
+  component_key varchar(80) [not null]
+  material_id uuid [not null]
+  usage_quantity numeric(20,4) [not null]
+  uom varchar(12) [not null]
+  source_row integer [not null]
+  row_hash bytea [not null]
+
+  indexes {
+    (bom_revision_id, fgpn_id, component_key) [unique, name: 'unique_bom_revision_items_bom_revision_id_fgpn_id_component_key']
+    bom_revision_id [name: 'ix_bom_revision_items_bom_revision_id']
+    fgpn_id [name: 'ix_bom_revision_items_fgpn_id']
+    material_id [name: 'ix_bom_revision_items_material_id']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): usage_quantity>0.
+  CHECK/constraint-trigger rule (documentary in DBML): full immutable snapshot row.
+  Append-only enforcement requires privileges plus a guard trigger; DBML cannot enforce UPDATE/DELETE/TRUNCATE revocation.
+  '''
+}
+
+// Module: bom
+Table bom_version_comparisons {
+  id uuid [pk]
+  old_revision_id uuid [not null]
+  new_revision_id uuid [not null]
+  compared_by uuid [not null]
+  compared_at timestamptz [not null]
+
+  indexes {
+    (old_revision_id, new_revision_id) [unique, name: 'unique_bom_version_comparisons_old_revision_id_new_revision_id']
+    old_revision_id [name: 'ix_bom_version_comparisons_old_revision_id']
+    new_revision_id [name: 'ix_bom_version_comparisons_new_revision_id']
+    compared_by [name: 'ix_bom_version_comparisons_compared_by']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): same project and revisions differ.
+  '''
+}
+
+// Module: bom
+Table bom_version_comparison_items {
+  id uuid [pk]
+  comparison_id uuid [not null]
+  fgpn_id uuid [not null]
+  material_id uuid [not null]
+  component_key varchar(80) [not null]
+  old_usage numeric(20,4)
+  new_usage numeric(20,4)
+  change_type change_type [not null]
+
+  indexes {
+    (comparison_id, fgpn_id, component_key) [unique, name: 'unique_bom_version_comparison_items_comparison_id_fgpn_70b5a75c']
+    comparison_id [name: 'ix_bom_version_comparison_items_comparison_id']
+    fgpn_id [name: 'ix_bom_version_comparison_items_fgpn_id']
+    material_id [name: 'ix_bom_version_comparison_items_material_id']
+  }
+}
+
+// Module: bom
+Table simulation_policies {
+  id uuid [pk]
+  project_id uuid
+  name varchar(100) [not null]
+  active boolean [not null, default: true]
+  created_by uuid [not null]
+  created_at timestamptz [not null]
+  row_version bigint [not null, default: 1]
+
+  indexes {
+    project_id [name: 'ix_simulation_policies_project_id']
+    created_by [name: 'ix_simulation_policies_created_by']
+  }
+
+  Note: '''
+  PostgreSQL UNIQUE NULLS NOT DISTINCT rule (not expressible in DBML): (project_id,name).
+  RLS policy required on project_id; DBML does not implement row-level security.
+  '''
+}
+
+// Module: bom
+Table simulation_policy_versions {
+  id uuid [pk]
+  policy_id uuid [not null]
+  version_no integer [not null]
+  safety_coefficient numeric(12,4) [not null]
+  priority_rule varchar(60) [not null]
+  tie_break_rule varchar(60) [not null]
+  stock_pool_rules jsonb [not null]
+  future_stock_rules jsonb [not null]
+  effective_from timestamptz [not null]
+  created_by uuid [not null]
+  created_at timestamptz [not null]
+
+  indexes {
+    (policy_id, version_no) [unique, name: 'unique_simulation_policy_versions_policy_id_version_no']
+    policy_id [name: 'ix_simulation_policy_versions_policy_id']
+    created_by [name: 'ix_simulation_policy_versions_created_by']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): safety_coefficient>0; immutable.
+  Append-only enforcement requires privileges plus a guard trigger; DBML cannot enforce UPDATE/DELETE/TRUNCATE revocation.
+  '''
+}
+
+// Module: bom
+Table launch_simulations {
+  id uuid [pk]
+  project_id uuid [not null]
+  simulation_type simulation_type [not null]
+  policy_version_id uuid [not null]
+  policy_snapshot jsonb [not null]
+  as_of_at timestamptz [not null]
+  run_by uuid [not null]
+  run_at timestamptz [not null]
+  result_status simulation_result [not null]
+  draft_document_id uuid
+  input_hash bytea [not null]
+
+  indexes {
+    (project_id, input_hash, run_at) [unique, name: 'unique_launch_simulations_project_id_input_hash_run_at']
+    project_id [name: 'ix_launch_simulations_project_id']
+    policy_version_id [name: 'ix_launch_simulations_policy_version_id']
+    run_by [name: 'ix_launch_simulations_run_by']
+    draft_document_id [name: 'ix_launch_simulations_draft_document_id']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): immutable after completion.
+  Append-only enforcement requires privileges plus a guard trigger; DBML cannot enforce UPDATE/DELETE/TRUNCATE revocation.
+  RLS policy required on project_id; DBML does not implement row-level security.
+  '''
+}
+
+// Module: bom
+Table simulation_purchase_orders {
+  id uuid [pk]
+  simulation_id uuid [not null]
+  purchase_order_id uuid [not null]
+  po_version_id uuid [not null]
+  priority_rank integer [not null]
+  delivery_date_snapshot date
+  po_value_snapshot numeric(20,4)
+
+  indexes {
+    (simulation_id, purchase_order_id) [unique, name: 'unique_simulation_purchase_orders_simulation_id_purcha_3816c7d3']
+    (simulation_id, priority_rank) [unique, name: 'unique_simulation_purchase_orders_simulation_id_priority_rank']
+    simulation_id [name: 'ix_simulation_purchase_orders_simulation_id']
+    purchase_order_id [name: 'ix_simulation_purchase_orders_purchase_order_id']
+    po_version_id [name: 'ix_simulation_purchase_orders_po_version_id']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): exact immutable PO version.
+  Append-only enforcement requires privileges plus a guard trigger; DBML cannot enforce UPDATE/DELETE/TRUNCATE revocation.
+  '''
+}
+
+// Module: bom
+Table simulation_item_results {
+  id uuid [pk]
+  simulation_po_id uuid [not null]
+  po_item_id uuid [not null]
+  po_version_item_id uuid [not null]
+  bom_revision_id uuid [not null]
+  requested_qty numeric(20,4) [not null]
+  already_launched_qty_snapshot numeric(20,4) [not null]
+  already_in_manufacturing_qty_snapshot numeric(20,4) [not null]
+  remaining_to_launch_qty numeric(20,4) [note: 'Generated value; define and verify the PostgreSQL expression in executable DDL.']
+  launchable_qty numeric(20,4) [not null]
+  result simulation_item_result [not null]
+
+  indexes {
+    (simulation_po_id, po_item_id) [unique, name: 'unique_simulation_item_results_simulation_po_id_po_item_id']
+    simulation_po_id [name: 'ix_simulation_item_results_simulation_po_id']
+    po_item_id [name: 'ix_simulation_item_results_po_item_id']
+    po_version_item_id [name: 'ix_simulation_item_results_po_version_item_id']
+    bom_revision_id [name: 'ix_simulation_item_results_bom_revision_id']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): nonnegative; in_manufacturing<=launched<=requested.
+  CHECK/constraint-trigger rule (documentary in DBML): remaining=greatest(requested-launched,0).
+  CHECK/constraint-trigger rule (documentary in DBML): launchable<=remaining_to_launch_qty.
+  '''
+}
+
+// Module: bom
+Table simulation_stock_inputs {
+  id uuid [pk]
+  simulation_id uuid [not null]
+  material_id uuid [not null]
+  warehouse_qty_snapshot numeric(20,4) [not null]
+  wip_qty_snapshot numeric(20,4) [not null]
+  transit_qty_snapshot numeric(20,4) [not null]
+  planned_qty_snapshot numeric(20,4) [not null]
+  usable_qty_snapshot numeric(20,4) [not null]
+  pool_breakdown_snapshot jsonb [not null]
+  balance_as_of timestamptz [not null]
+
+  indexes {
+    (simulation_id, material_id) [unique, name: 'unique_simulation_stock_inputs_simulation_id_material_id']
+    simulation_id [name: 'ix_simulation_stock_inputs_simulation_id']
+    material_id [name: 'ix_simulation_stock_inputs_material_id']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): component snapshots and usable_qty are nonnegative.
+  '''
+}
+
+// Module: bom
+Table simulation_future_arrival_inputs {
+  id uuid [pk]
+  simulation_id uuid [not null]
+  material_id uuid [not null]
+  future_arrival_id uuid [not null]
+  quantity_snapshot numeric(20,4) [not null]
+  expected_arrival_date_snapshot date [not null]
+
+  indexes {
+    (simulation_id, future_arrival_id) [unique, name: 'unique_simulation_future_arrival_inputs_simulation_id__c9e28bee']
+    simulation_id [name: 'ix_simulation_future_arrival_inputs_simulation_id']
+    material_id [name: 'ix_simulation_future_arrival_inputs_material_id']
+    future_arrival_id [name: 'ix_simulation_future_arrival_inputs_future_arrival_id']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): immutable selected arrival; quantity>0.
+  Append-only enforcement requires privileges plus a guard trigger; DBML cannot enforce UPDATE/DELETE/TRUNCATE revocation.
+  '''
+}
+
+// Module: bom
+Table simulation_material_allocations {
+  id uuid [pk]
+  simulation_item_result_id uuid [not null]
+  material_id uuid [not null]
+  usage_snapshot numeric(20,4) [not null]
+  safety_coefficient_snapshot numeric(12,4) [not null]
+  required_qty numeric(20,4) [not null]
+  allocated_qty numeric(20,4) [not null]
+  shortfall_qty numeric(20,4) [not null]
+
+  indexes {
+    (simulation_item_result_id, material_id) [unique, name: 'unique_simulation_material_allocations_simulation_item_9d9150eb']
+    simulation_item_result_id [name: 'ix_simulation_material_allocations_simulation_item_result_id']
+    material_id [name: 'ix_simulation_material_allocations_material_id']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): required=usage*safety*remaining_to_launch.
+  CHECK/constraint-trigger rule (documentary in DBML): shortfall=greatest(required-allocated,0).
+  '''
+}
+
+// Module: bom
+Table launch_operations {
+  id uuid [pk]
+  project_id uuid [not null]
+  simulation_id uuid [not null]
+  status launch_operation_status [not null]
+  meeting_minutes_document_id uuid
+  approved_by uuid
+  approved_at timestamptz
+  finalized_at timestamptz
+  row_version bigint [not null, default: 1]
+
+  indexes {
+    simulation_id [unique, name: 'unique_launch_operations_simulation_id']
+    project_id [name: 'ix_launch_operations_project_id']
+    meeting_minutes_document_id [name: 'ix_launch_operations_meeting_minutes_document_id']
+    approved_by [name: 'ix_launch_operations_approved_by']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): finalized => meeting minutes + approval.
+  RLS policy required on project_id; DBML does not implement row-level security.
+  '''
+}
+
+// Module: bom
+Table launch_operation_items {
+  id uuid [pk]
+  launch_operation_id uuid [not null]
+  simulation_item_result_id uuid [not null]
+  po_item_id uuid [not null]
+  bom_revision_id uuid [not null]
+  quantity_launched numeric(20,4) [not null]
+
+  indexes {
+    (launch_operation_id, po_item_id) [unique, name: 'unique_launch_operation_items_launch_operation_id_po_item_id']
+    launch_operation_id [name: 'ix_launch_operation_items_launch_operation_id']
+    simulation_item_result_id [name: 'ix_launch_operation_items_simulation_item_result_id']
+    po_item_id [name: 'ix_launch_operation_items_po_item_id']
+    bom_revision_id [name: 'ix_launch_operation_items_bom_revision_id']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): quantity_launched>0 and <= simulated launchable.
+  '''
+}
+
+// Module: bom
+Table bom_impact_reviews {
+  id uuid [pk]
+  project_id uuid [not null]
+  launch_operation_id uuid
+  old_revision_id uuid [not null]
+  new_revision_id uuid [not null]
+  status impact_review_status [not null]
+  created_at timestamptz [not null]
+  reviewed_by uuid
+  reviewed_at timestamptz
+
+  indexes {
+    (launch_operation_id, old_revision_id, new_revision_id) [unique, name: 'unique_bom_impact_reviews_launch_operation_id_old_revi_fe1b7574']
+    project_id [name: 'ix_bom_impact_reviews_project_id']
+    launch_operation_id [name: 'ix_bom_impact_reviews_launch_operation_id']
+    old_revision_id [name: 'ix_bom_impact_reviews_old_revision_id']
+    new_revision_id [name: 'ix_bom_impact_reviews_new_revision_id']
+    reviewed_by [name: 'ix_bom_impact_reviews_reviewed_by']
+  }
+
+  Note: '''
+  RLS policy required on project_id; DBML does not implement row-level security.
+  '''
+}
+
+// Module: bom
+Table bom_impact_review_items {
+  id uuid [pk]
+  review_id uuid [not null]
+  material_id uuid [not null]
+  old_required_qty numeric(20,4) [not null]
+  new_required_qty numeric(20,4) [not null]
+  difference_qty numeric(20,4) [not null]
+
+  indexes {
+    (review_id, material_id) [unique, name: 'unique_bom_impact_review_items_review_id_material_id']
+    review_id [name: 'ix_bom_impact_review_items_review_id']
+    material_id [name: 'ix_bom_impact_review_items_material_id']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): difference=new-old.
+  '''
+}
+
+// Module: inventory
+Table inventory_locations {
+  id uuid [pk]
+  location_code varchar(30) [unique, not null]
+  name varchar(120) [not null]
+  location_type location_type [not null]
+  project_id uuid
+  active boolean [not null, default: true]
+  row_version bigint [not null, default: 1]
+
+  indexes {
+    project_id [name: 'ix_inventory_locations_project_id']
+  }
+
+  Note: '''
+  RLS policy required on project_id; DBML does not implement row-level security.
+  '''
+}
+
+// Module: inventory
+Table stock_pools {
+  id uuid [pk]
+  pool_code varchar(30) [unique, not null]
+  name varchar(120) [not null]
+  pool_type stock_pool_type [not null]
+  scope_mode stock_pool_scope [not null]
+  included_in_practical boolean [not null]
+  included_in_theoretical boolean [not null]
+  included_in_standard_sim boolean [not null]
+  active boolean [not null, default: true]
+}
+
+// Module: inventory
+Table project_stock_pools {
+  id uuid [pk]
+  project_id uuid [not null]
+  stock_pool_id uuid [not null]
+  effective_from timestamptz [not null]
+  effective_to timestamptz
+  mapped_by uuid [not null]
+
+  indexes {
+    (project_id, stock_pool_id, effective_from) [unique, name: 'unique_project_stock_pools_project_id_stock_pool_id_ef_e91967a8']
+    project_id [name: 'ix_project_stock_pools_project_id']
+    stock_pool_id [name: 'ix_project_stock_pools_stock_pool_id']
+    mapped_by [name: 'ix_project_stock_pools_mapped_by']
+  }
+
+  Note: '''
+  PostgreSQL partial UNIQUE rule (not expressible in DBML): (project_id,stock_pool_id) WHERE effective_to IS NULL.
+  PostgreSQL EXCLUDE/non-overlap rule (not expressible in DBML): overlapping membership per project/pool.
+  CHECK/constraint-trigger rule (documentary in DBML): project-scoped pool has one project; shared pool may map many.
+  RLS policy required on project_id; DBML does not implement row-level security.
+  '''
+}
+
+// Module: inventory
+Table stock_pool_locations {
+  id uuid [pk]
+  stock_pool_id uuid [not null]
+  location_id uuid [not null]
+  effective_from timestamptz [not null]
+  effective_to timestamptz
+
+  indexes {
+    (stock_pool_id, location_id, effective_from) [unique, name: 'unique_stock_pool_locations_stock_pool_id_location_id__1e00cdc4']
+    stock_pool_id [name: 'ix_stock_pool_locations_stock_pool_id']
+    location_id [name: 'ix_stock_pool_locations_location_id']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): effective_to>effective_from when set.
+  PostgreSQL EXCLUDE/non-overlap rule (not expressible in DBML): overlapping membership per location.
+  '''
+}
+
+// Module: inventory
+Table inventory_events {
+  id uuid [pk]
+  event_type inventory_event_type [not null]
+  source_system varchar(40) [not null]
+  source_event_key varchar(120) [not null]
+  idempotency_key uuid [unique, not null]
+  payload_hash bytea [not null]
+  occurred_at timestamptz [not null]
+  created_by uuid
+  created_at timestamptz [not null]
+  posted_at timestamptz [not null]
+  reversal_of_event_id uuid
+
+  indexes {
+    (source_system, source_event_key) [unique, name: 'unique_inventory_events_source_system_source_event_key']
+    reversal_of_event_id [unique, name: 'unique_inventory_events_reversal_of_event_id']
+    created_by [name: 'ix_inventory_events_created_by']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): immutable; payload key reuse must match hash.
+  Append-only enforcement requires privileges plus a guard trigger; DBML cannot enforce UPDATE/DELETE/TRUNCATE revocation.
+  '''
+}
+
+// Module: inventory
+Table inventory_postings {
+  id uuid [pk]
+  event_id uuid [not null]
+  line_no integer [not null]
+  project_id uuid
+  material_id uuid [not null]
+  location_id uuid [not null]
+  quantity_delta numeric(20,4) [not null]
+  uom varchar(12) [not null]
+  lot_reference varchar(80)
+
+  indexes {
+    (event_id, line_no) [unique, name: 'unique_inventory_postings_event_id_line_no']
+    event_id [name: 'ix_inventory_postings_event_id']
+    project_id [name: 'ix_inventory_postings_project_id']
+    material_id [name: 'ix_inventory_postings_material_id']
+    location_id [name: 'ix_inventory_postings_location_id']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): quantity_delta<>0; immutable.
+  Append-only enforcement requires privileges plus a guard trigger; DBML cannot enforce UPDATE/DELETE/TRUNCATE revocation.
+  RLS policy required on project_id; DBML does not implement row-level security.
+  '''
+}
+
+// Module: inventory
+Table stock_receptions {
+  id uuid [pk]
+  project_id uuid
+  receiving_location_id uuid [not null]
+  supplier_reference varchar(100)
+  received_by uuid [not null]
+  received_at timestamptz [not null]
+  correction_deadline timestamptz [not null]
+  row_version bigint [not null, default: 1]
+
+  indexes {
+    project_id [name: 'ix_stock_receptions_project_id']
+    receiving_location_id [name: 'ix_stock_receptions_receiving_location_id']
+    received_by [name: 'ix_stock_receptions_received_by']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): deadline=received_at+24h.
+  RLS policy required on project_id; DBML does not implement row-level security.
+  '''
+}
+
+// Module: inventory
+Table stock_reception_lines {
+  id uuid [pk]
+  reception_id uuid [not null]
+  line_no integer [not null]
+  material_id uuid [not null]
+  quantity_received numeric(20,4) [not null]
+  inventory_event_id uuid [not null]
+
+  indexes {
+    (reception_id, line_no) [unique, name: 'unique_stock_reception_lines_reception_id_line_no']
+    inventory_event_id [unique, name: 'unique_stock_reception_lines_inventory_event_id']
+    reception_id [name: 'ix_stock_reception_lines_reception_id']
+    material_id [name: 'ix_stock_reception_lines_material_id']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): quantity_received>0.
+  '''
+}
+
+// Module: inventory
+Table stock_reception_corrections {
+  id uuid [pk]
+  reception_line_id uuid [not null]
+  previous_quantity numeric(20,4) [not null]
+  corrected_quantity numeric(20,4) [not null]
+  reason text [not null]
+  corrected_by uuid [not null]
+  corrected_at timestamptz [not null]
+  reversal_event_id uuid [not null]
+  replacement_event_id uuid [not null]
+
+  indexes {
+    reversal_event_id [unique, name: 'unique_stock_reception_corrections_reversal_event_id']
+    replacement_event_id [unique, name: 'unique_stock_reception_corrections_replacement_event_id']
+    reception_line_id [name: 'ix_stock_reception_corrections_reception_line_id']
+    corrected_by [name: 'ix_stock_reception_corrections_corrected_by']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): immutable; original line not updated.
+  Append-only enforcement requires privileges plus a guard trigger; DBML cannot enforce UPDATE/DELETE/TRUNCATE revocation.
+  '''
+}
+
+// Module: inventory
+Table cutman_imports {
+  id uuid [pk]
+  project_id uuid [not null]
+  stock_pool_id uuid [not null]
+  document_id uuid [not null]
+  import_format cutman_format [not null]
+  file_hash bytea [not null]
+  imported_by uuid [not null]
+  imported_at timestamptz [not null]
+  status import_status [not null]
+  error_message text
+
+  indexes {
+    (project_id, stock_pool_id, file_hash) [unique, name: 'unique_cutman_imports_project_id_stock_pool_id_file_hash']
+    project_id [name: 'ix_cutman_imports_project_id']
+    stock_pool_id [name: 'ix_cutman_imports_stock_pool_id']
+    document_id [name: 'ix_cutman_imports_document_id']
+    imported_by [name: 'ix_cutman_imports_imported_by']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): active project_stock_pools mapping required.
+  CHECK/constraint-trigger rule (documentary in DBML): format IN ('xlsx','sql_data').
+  RLS policy required on project_id; DBML does not implement row-level security.
+  '''
+}
+
+// Module: inventory
+Table cutman_import_lines {
+  id uuid [pk]
+  cutman_import_id uuid [not null]
+  row_number integer [not null]
+  material_id uuid [not null]
+  wip_location_id uuid [not null]
+  reported_wip_qty numeric(20,4) [not null]
+  prior_qty_snapshot numeric(20,4) [not null]
+  delta_posted numeric(20,4) [not null]
+  inventory_event_id uuid [not null]
+
+  indexes {
+    (cutman_import_id, row_number) [unique, name: 'unique_cutman_import_lines_cutman_import_id_row_number']
+    inventory_event_id [unique, name: 'unique_cutman_import_lines_inventory_event_id']
+    cutman_import_id [name: 'ix_cutman_import_lines_cutman_import_id']
+    material_id [name: 'ix_cutman_import_lines_material_id']
+    wip_location_id [name: 'ix_cutman_import_lines_wip_location_id']
+  }
+}
+
+// Module: inventory
+Table future_stock_arrivals {
+  id uuid [pk]
+  project_id uuid
+  material_id uuid [not null]
+  destination_location_id uuid [not null]
+  source_reference varchar(100)
+  quantity_expected numeric(20,4) [not null]
+  expected_arrival_date date [not null]
+  status arrival_status [not null]
+  entered_by uuid [not null]
+  entered_at timestamptz [not null]
+  receipt_event_id uuid
+  row_version bigint [not null, default: 1]
+
+  indexes {
+    receipt_event_id [unique, name: 'unique_future_stock_arrivals_receipt_event_id']
+    project_id [name: 'ix_future_stock_arrivals_project_id']
+    material_id [name: 'ix_future_stock_arrivals_material_id']
+    destination_location_id [name: 'ix_future_stock_arrivals_destination_location_id']
+    entered_by [name: 'ix_future_stock_arrivals_entered_by']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): quantity_expected>0.
+  RLS policy required on project_id; DBML does not implement row-level security.
+  '''
+}
+
+// Module: inventory
+Table stock_thresholds {
+  id uuid [pk]
+  project_id uuid [not null]
+  material_id uuid [not null]
+  threshold_qty numeric(20,4) [not null]
+  valid_during tstzrange [not null]
+  defined_by uuid [not null]
+  created_at timestamptz [not null]
+
+  indexes {
+    project_id [name: 'ix_stock_thresholds_project_id']
+    material_id [name: 'ix_stock_thresholds_material_id']
+    defined_by [name: 'ix_stock_thresholds_defined_by']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): threshold_qty>=0.
+  PostgreSQL EXCLUDE/non-overlap rule (not expressible in DBML): overlap (project_id,material_id,valid_during).
+  RLS policy required on project_id; DBML does not implement row-level security.
+  '''
+}
+
+// Module: delivery
+Table warehouse_delivery_instructions {
+  id uuid [pk]
+  launch_operation_id uuid [not null]
+  project_id uuid [not null]
+  required_at timestamptz [not null]
+  status warehouse_instruction_status [not null]
+  created_by uuid [not null]
+  created_at timestamptz [not null]
+  row_version bigint [not null, default: 1]
+
+  indexes {
+    launch_operation_id [unique, name: 'unique_warehouse_delivery_instructions_launch_operation_id']
+    project_id [name: 'ix_warehouse_delivery_instructions_project_id']
+    created_by [name: 'ix_warehouse_delivery_instructions_created_by']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): launch finalized and meeting minutes present.
+  RLS policy required on project_id; DBML does not implement row-level security.
+  '''
+}
+
+// Module: delivery
+Table warehouse_delivery_instruction_lines {
+  id uuid [pk]
+  instruction_id uuid [not null]
+  line_no integer [not null]
+  material_id uuid [not null]
+  description_snapshot varchar(50) [not null]
+  quantity_to_deliver numeric(20,4) [not null]
+  uom varchar(12) [not null]
+
+  indexes {
+    (instruction_id, line_no) [unique, name: 'unique_warehouse_delivery_instruction_lines_instructio_86498133']
+    (instruction_id, material_id) [unique, name: 'unique_warehouse_delivery_instruction_lines_instructio_3a52c1ed']
+    instruction_id [name: 'ix_warehouse_delivery_instruction_lines_instruction_id']
+    material_id [name: 'ix_warehouse_delivery_instruction_lines_material_id']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): quantity_to_deliver>0.
+  '''
+}
+
+// Module: delivery
+Table delivery_codes {
+  id uuid [pk]
+  instruction_id uuid [not null]
+  code_digest bytea [unique, not null]
+  generated_by uuid [not null]
+  generated_at timestamptz [not null]
+  expires_at timestamptz [not null]
+  consumed_at timestamptz
+  consumed_by uuid
+  revoked_at timestamptz
+
+  indexes {
+    instruction_id [name: 'ix_delivery_codes_instruction_id']
+    generated_by [name: 'ix_delivery_codes_generated_by']
+    consumed_by [name: 'ix_delivery_codes_consumed_by']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): expires_at>generated_at.
+  CHECK/constraint-trigger rule (documentary in DBML): consumed once; digest only.
+  PostgreSQL partial UNIQUE rule (not expressible in DBML): one unconsumed code per instruction.
+  '''
+}
+
+// Module: delivery
+Table delivery_code_access_events {
+  id bigint [pk, increment]
+  delivery_code_id uuid
+  entered_code_digest bytea [not null]
+  entered_by uuid
+  entered_at timestamptz [not null]
+  success boolean [not null]
+  failure_reason varchar(80)
+  ip_address inet
+
+  indexes {
+    delivery_code_id [name: 'ix_delivery_code_access_events_delivery_code_id']
+    entered_by [name: 'ix_delivery_code_access_events_entered_by']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): immutable.
+  Append-only enforcement requires privileges plus a guard trigger; DBML cannot enforce UPDATE/DELETE/TRUNCATE revocation.
+  '''
+}
+
+// Module: delivery
+Table warehouse_delivery_documents {
+  id uuid [pk]
+  instruction_id uuid [not null]
+  document_id uuid [not null]
+  warehouse_leader_id uuid [not null]
+  manufacturing_receiver_id uuid [not null]
+  receiver_name_snapshot varchar(150) [not null]
+  generated_at timestamptz [not null]
+
+  indexes {
+    instruction_id [unique, name: 'unique_warehouse_delivery_documents_instruction_id']
+    document_id [unique, name: 'unique_warehouse_delivery_documents_document_id']
+    warehouse_leader_id [name: 'ix_warehouse_delivery_documents_warehouse_leader_id']
+    manufacturing_receiver_id [name: 'ix_warehouse_delivery_documents_manufacturing_receiver_id']
+  }
+}
+
+// Module: delivery
+Table warehouse_delivery_receipts {
+  id uuid [pk]
+  warehouse_document_id uuid [not null]
+  signed_document_id uuid [not null]
+  document_signature_id uuid [not null]
+  status signed_document_status [not null]
+  uploaded_by uuid [not null]
+  uploaded_at timestamptz [not null]
+  validated_by uuid
+  validated_at timestamptz
+  inventory_event_id uuid
+  row_version bigint [not null, default: 1]
+
+  indexes {
+    signed_document_id [unique, name: 'unique_warehouse_delivery_receipts_signed_document_id']
+    document_signature_id [unique, name: 'unique_warehouse_delivery_receipts_document_signature_id']
+    inventory_event_id [unique, name: 'unique_warehouse_delivery_receipts_inventory_event_id']
+    warehouse_document_id [name: 'ix_warehouse_delivery_receipts_warehouse_document_id']
+    uploaded_by [name: 'ix_warehouse_delivery_receipts_uploaded_by']
+    validated_by [name: 'ix_warehouse_delivery_receipts_validated_by']
+  }
+
+  Note: '''
+  PostgreSQL partial UNIQUE rule (not expressible in DBML): warehouse_document_id WHERE status='validated'.
+  PostgreSQL partial UNIQUE rule (not expressible in DBML): warehouse_document_id WHERE inventory_event_id IS NOT NULL.
+  CHECK/constraint-trigger rule (documentary in DBML): validator/time may record rejection; event only when validated.
+  Retry/exactly-once rule: retain multiple signed submissions for correction or retry, but allow only one validated/accepted submission and only one inventory-posting submission per warehouse_document_id. A validated typed signature posts the transfer exactly once; retries must return the already accepted effect rather than post again.
+  '''
+}
+
+// Module: delivery
+Table customer_delivery_instructions {
+  id uuid [pk]
+  project_id uuid [not null]
+  purchase_order_id uuid [not null]
+  delivery_method_id uuid [not null]
+  planned_delivery_date date
+  planned_period daterange
+  status customer_instruction_status [not null]
+  generated_by uuid [not null]
+  generated_at timestamptz [not null]
+  row_version bigint [not null, default: 1]
+
+  indexes {
+    project_id [name: 'ix_customer_delivery_instructions_project_id']
+    purchase_order_id [name: 'ix_customer_delivery_instructions_purchase_order_id']
+    delivery_method_id [name: 'ix_customer_delivery_instructions_delivery_method_id']
+    generated_by [name: 'ix_customer_delivery_instructions_generated_by']
+  }
+
+  Note: '''
+  RLS policy required on project_id; DBML does not implement row-level security.
+  '''
+}
+
+// Module: delivery
+Table customer_delivery_instruction_lines {
+  id uuid [pk]
+  instruction_id uuid [not null]
+  line_no integer [not null]
+  po_item_id uuid [not null]
+  po_version_item_id uuid [not null]
+  fgpn_code_snapshot varchar(32) [not null]
+  quantity_to_deliver numeric(20,4) [not null]
+
+  indexes {
+    (instruction_id, line_no) [unique, name: 'unique_customer_delivery_instruction_lines_instruction_b38d6732']
+    (instruction_id, po_item_id) [unique, name: 'unique_customer_delivery_instruction_lines_instruction_4fb56a15']
+    instruction_id [name: 'ix_customer_delivery_instruction_lines_instruction_id']
+    po_item_id [name: 'ix_customer_delivery_instruction_lines_po_item_id']
+    po_version_item_id [name: 'ix_customer_delivery_instruction_lines_po_version_item_id']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): quantity_to_deliver>0.
+  '''
+}
+
+// Module: delivery
+Table customer_delivery_documents {
+  id uuid [pk]
+  instruction_id uuid [not null]
+  document_id uuid [not null]
+  generated_at timestamptz [not null]
+
+  indexes {
+    instruction_id [unique, name: 'unique_customer_delivery_documents_instruction_id']
+    document_id [unique, name: 'unique_customer_delivery_documents_document_id']
+  }
+}
+
+// Module: delivery
+Table customer_deliveries {
+  id uuid [pk]
+  instruction_id uuid [not null]
+  project_id uuid [not null]
+  shipment_no integer [not null]
+  delivery_method_id uuid [not null]
+  method_cost_record_id uuid [not null]
+  transport_cost_snapshot numeric(20,4) [not null]
+  transport_currency_snapshot char(3) [not null]
+  planned_delivery_date date
+  actual_delivery_date date
+  status customer_delivery_status [not null]
+  created_by uuid [not null]
+  created_at timestamptz [not null]
+  row_version bigint [not null, default: 1]
+
+  indexes {
+    (instruction_id, shipment_no) [unique, name: 'unique_customer_deliveries_instruction_id_shipment_no']
+    instruction_id [name: 'ix_customer_deliveries_instruction_id']
+    project_id [name: 'ix_customer_deliveries_project_id']
+    delivery_method_id [name: 'ix_customer_deliveries_delivery_method_id']
+    method_cost_record_id [name: 'ix_customer_deliveries_method_cost_record_id']
+    created_by [name: 'ix_customer_deliveries_created_by']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): method matches effective cost record; Delivered requires confirmation.
+  RLS policy required on project_id; DBML does not implement row-level security.
+  '''
+}
+
+// Module: delivery
+Table customer_delivery_lines {
+  id uuid [pk]
+  customer_delivery_id uuid [not null]
+  line_no integer [not null]
+  po_item_id uuid [not null]
+  po_version_item_id uuid [not null]
+  fgpn_id uuid [not null]
+  fgpn_code_snapshot varchar(32) [not null]
+  delivered_level_snapshot varchar(40)
+  description_snapshot varchar(50)
+  delivered_quantity numeric(20,4) [not null]
+  price_record_id uuid [not null]
+  unit_price_snapshot numeric(20,4) [not null]
+  currency_snapshot char(3) [not null]
+  delivery_value numeric(20,4) [note: 'Generated value; define and verify the PostgreSQL expression in executable DDL.']
+
+  indexes {
+    (customer_delivery_id, line_no) [unique, name: 'unique_customer_delivery_lines_customer_delivery_id_line_no']
+    customer_delivery_id [name: 'ix_customer_delivery_lines_customer_delivery_id']
+    po_item_id [name: 'ix_customer_delivery_lines_po_item_id']
+    po_version_item_id [name: 'ix_customer_delivery_lines_po_version_item_id']
+    fgpn_id [name: 'ix_customer_delivery_lines_fgpn_id']
+    price_record_id [name: 'ix_customer_delivery_lines_price_record_id']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): qty>0; value=qty*price.
+  '''
+}
+
+// Module: delivery
+Table delivery_confirmations {
+  id uuid [pk]
+  customer_delivery_id uuid [not null]
+  confirmation_date date [not null]
+  confirmation_method varchar(40) [not null]
+  confirming_person_name varchar(150) [not null]
+  evidence_document_id uuid
+  evidence_reference text
+  recorded_by uuid [not null]
+  recorded_at timestamptz [not null]
+
+  indexes {
+    customer_delivery_id [unique, name: 'unique_delivery_confirmations_customer_delivery_id']
+    evidence_document_id [name: 'ix_delivery_confirmations_evidence_document_id']
+    recorded_by [name: 'ix_delivery_confirmations_recorded_by']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): evidence_document OR evidence_reference required.
+  CHECK/constraint-trigger rule (documentary in DBML): immutable.
+  Append-only enforcement requires privileges plus a guard trigger; DBML cannot enforce UPDATE/DELETE/TRUNCATE revocation.
+  '''
+}
+
+// Module: finance
+Table fgpn_price_records {
+  id uuid [pk]
+  project_id uuid [not null]
+  fgpn_id uuid [not null]
+  part_number char(7)
+  description varchar(50)
+  trim_style varchar(40)
+  unit_price numeric(20,4) [not null]
+  currency char(3) [not null]
+  valid_during daterange [not null]
+  created_by uuid [not null]
+  created_at timestamptz [not null]
+
+  indexes {
+    project_id [name: 'ix_fgpn_price_records_project_id']
+    fgpn_id [name: 'ix_fgpn_price_records_fgpn_id']
+    created_by [name: 'ix_fgpn_price_records_created_by']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): unit_price>=0.
+  PostgreSQL EXCLUDE/non-overlap rule (not expressible in DBML): overlap (project_id,fgpn_id,valid_during).
+  RLS policy required on project_id; DBML does not implement row-level security.
+  '''
+}
+
+// Module: finance
+Table delivery_method_cost_records {
+  id uuid [pk]
+  delivery_method_id uuid [not null]
+  project_id uuid
+  cost_amount numeric(20,4) [not null]
+  currency char(3) [not null]
+  valid_during daterange [not null]
+  created_by uuid [not null]
+  created_at timestamptz [not null]
+
+  indexes {
+    delivery_method_id [name: 'ix_delivery_method_cost_records_delivery_method_id']
+    project_id [name: 'ix_delivery_method_cost_records_project_id']
+    created_by [name: 'ix_delivery_method_cost_records_created_by']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): cost_amount>=0.
+  PostgreSQL EXCLUDE/non-overlap rule (not expressible in DBML): overlap per method/project period.
+  RLS policy required on project_id; DBML does not implement row-level security.
+  '''
+}
+
+// Module: finance
+Table material_cost_records {
+  id uuid [pk]
+  material_id uuid [not null]
+  project_id uuid
+  ordered_price numeric(20,4) [not null]
+  currency char(3) [not null]
+  valid_during daterange [not null]
+  supplier_reference varchar(100)
+  entered_by uuid [not null]
+  entered_at timestamptz [not null]
+
+  indexes {
+    material_id [name: 'ix_material_cost_records_material_id']
+    project_id [name: 'ix_material_cost_records_project_id']
+    entered_by [name: 'ix_material_cost_records_entered_by']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): ordered_price>=0.
+  PostgreSQL EXCLUDE/non-overlap rule (not expressible in DBML): overlap per material/project period.
+  RLS policy required on project_id; DBML does not implement row-level security.
+  '''
+}
+
+// Module: finance
+Table sales_forecasts {
+  id uuid [pk]
+  project_id uuid [not null]
+  forecast_month date [not null]
+  version_no integer [not null]
+  status forecast_status [not null]
+  created_by uuid [not null]
+  created_at timestamptz [not null]
+
+  indexes {
+    (project_id, forecast_month, version_no) [unique, name: 'unique_sales_forecasts_project_id_forecast_month_version_no']
+    project_id [name: 'ix_sales_forecasts_project_id']
+    created_by [name: 'ix_sales_forecasts_created_by']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): forecast_month is first day.
+  CHECK/constraint-trigger rule (documentary in DBML): active version immutable.
+  Append-only enforcement requires privileges plus a guard trigger; DBML cannot enforce UPDATE/DELETE/TRUNCATE revocation.
+  RLS policy required on project_id; DBML does not implement row-level security.
+  '''
+}
+
+// Module: finance
+Table sales_forecast_lines {
+  id uuid [pk]
+  forecast_id uuid [not null]
+  line_no integer [not null]
+  purchase_order_id uuid
+  po_item_id uuid
+  fgpn_id uuid [not null]
+  planned_pickup_date date [not null]
+  planned_quantity numeric(20,4) [not null]
+  price_record_id uuid [not null]
+  unit_price_snapshot numeric(20,4) [not null]
+  currency_snapshot char(3) [not null]
+  forecast_value numeric(20,4) [note: 'Generated value; define and verify the PostgreSQL expression in executable DDL.']
+
+  indexes {
+    (forecast_id, line_no) [unique, name: 'unique_sales_forecast_lines_forecast_id_line_no']
+    forecast_id [name: 'ix_sales_forecast_lines_forecast_id']
+    purchase_order_id [name: 'ix_sales_forecast_lines_purchase_order_id']
+    po_item_id [name: 'ix_sales_forecast_lines_po_item_id']
+    fgpn_id [name: 'ix_sales_forecast_lines_fgpn_id']
+    price_record_id [name: 'ix_sales_forecast_lines_price_record_id']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): qty>=0; value=qty*price.
+  '''
+}
+
+// Module: finance
+Table invoices {
+  id uuid [pk]
+  customer_delivery_id uuid [not null]
+  document_id uuid [not null]
+  invoice_number varchar(80)
+  status invoice_status [not null]
+  uploaded_by uuid [not null]
+  uploaded_at timestamptz [not null]
+
+  indexes {
+    document_id [unique, name: 'unique_invoices_document_id']
+    customer_delivery_id [name: 'ix_invoices_customer_delivery_id']
+    uploaded_by [name: 'ix_invoices_uploaded_by']
+  }
+
+  Note: '''
+  PostgreSQL UNIQUE NULLS NOT DISTINCT rule (not expressible in DBML): (customer_delivery_id,invoice_number).
+  '''
+}
+
+// Module: audit
+Table audit_stream_heads {
+  stream_key varchar(160) [pk]
+  last_sequence_no bigint [not null]
+  last_event_hash bytea [not null]
+  updated_at timestamptz [not null]
+  row_version bigint [not null, default: 1]
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): internal row locked FOR UPDATE during append.
+  '''
+}
+
+// Module: audit
+Table audit_events {
+  id uuid [pk]
+  stream_key varchar(160) [not null]
+  sequence_no bigint [not null]
+  project_id uuid
+  user_id uuid
+  event_type varchar(80) [not null]
+  entity_type varchar(80) [not null]
+  entity_id uuid [not null]
+  old_value jsonb
+  new_value jsonb
+  reason text
+  document_id uuid
+  occurred_at timestamptz [not null]
+  prev_hash bytea [not null]
+  event_hash bytea [not null]
+
+  indexes {
+    (stream_key, sequence_no) [unique, name: 'unique_audit_events_stream_key_sequence_no']
+    event_hash [unique, name: 'unique_audit_events_event_hash']
+    project_id [name: 'ix_audit_events_project_id']
+    user_id [name: 'ix_audit_events_user_id']
+    document_id [name: 'ix_audit_events_document_id']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): hash=sha256(prev_hash+canonical payload).
+  CHECK/constraint-trigger rule (documentary in DBML): append-only.
+  Append-only enforcement requires privileges plus a guard trigger; DBML cannot enforce UPDATE/DELETE/TRUNCATE revocation.
+  RLS policy required on project_id; DBML does not implement row-level security.
+  '''
+}
+
+// Module: cross
+Table idempotency_requests {
+  id uuid [pk]
+  scope varchar(80) [not null]
+  idempotency_key uuid [not null]
+  request_hash bytea [not null]
+  status idempotency_status [not null]
+  response_code integer
+  response_body jsonb
+  created_at timestamptz [not null]
+  completed_at timestamptz
+  expires_at timestamptz [not null]
+
+  indexes {
+    (scope, idempotency_key) [unique, name: 'unique_idempotency_requests_scope_idempotency_key']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): key reuse requires same request_hash.
+  '''
+}
+
+// Module: audit
+Table outbox_events {
+  id uuid [pk]
+  audit_event_id uuid
+  aggregate_type varchar(80) [not null]
+  aggregate_id uuid [not null]
+  event_type varchar(100) [not null]
+  topic varchar(120) [not null]
+  payload jsonb [not null]
+  occurred_at timestamptz [not null]
+  available_at timestamptz [not null]
+  published_at timestamptz
+  attempt_count integer [not null, default: 0]
+  last_error text
+
+  indexes {
+    audit_event_id [unique, name: 'unique_outbox_events_audit_event_id']
+    (aggregate_type, aggregate_id, event_type, occurred_at) [unique, name: 'unique_outbox_events_aggregate_type_aggregate_id_event_3a60f863']
+  }
+
+  Note: '''
+  Transactional-outbox rule: the business fact, audit event, and outbox row commit atomically. A worker retries publication and sets published_at only after success; consumers deduplicate by outbox event id. DBML documents, but cannot enforce, the transaction and worker protocol.
+  '''
+}
+
+// Module: audit
+Table dashboard_alerts {
+  id uuid [pk]
+  project_id uuid
+  alert_type varchar(80) [not null, note: 'Extensible SRS exception code, not a user-notification taxonomy.']
+  entity_type varchar(80) [not null]
+  entity_id uuid [not null]
+  severity alert_severity [not null]
+  message text [not null]
+  dedupe_key varchar(200) [not null]
+  status alert_status [not null]
+  created_at timestamptz [not null]
+  acknowledged_by uuid
+  acknowledged_at timestamptz
+  resolved_at timestamptz
+
+  indexes {
+    project_id [name: 'ix_dashboard_alerts_project_id']
+    acknowledged_by [name: 'ix_dashboard_alerts_acknowledged_by']
+  }
+
+  Note: '''
+  PostgreSQL partial UNIQUE rule (not expressible in DBML): dedupe_key WHERE status='open'.
+  CHECK/constraint-trigger rule (documentary in DBML): SRS exceptions only; no notification table.
+  RLS policy required on project_id; DBML does not implement row-level security.
+  '''
+}
+
+// Module: audit
+Table audit_packages {
+  id uuid [pk]
+  project_id uuid [not null]
+  as_of_at timestamptz [not null]
+  document_id uuid [not null]
+  manifest_hash bytea [not null]
+  status audit_package_status [not null]
+  generated_by uuid [not null]
+  generated_at timestamptz [not null]
+
+  indexes {
+    document_id [unique, name: 'unique_audit_packages_document_id']
+    (project_id, as_of_at, manifest_hash) [unique, name: 'unique_audit_packages_project_id_as_of_at_manifest_hash']
+    project_id [name: 'ix_audit_packages_project_id']
+    generated_by [name: 'ix_audit_packages_generated_by']
+  }
+
+  Note: '''
+  RLS policy required on project_id; DBML does not implement row-level security.
+  '''
+}
+
+// Module: audit
+Table audit_package_items {
+  id uuid [pk]
+  audit_package_id uuid [not null]
+  ordinal integer [not null]
+  entity_type varchar(80) [not null]
+  entity_id uuid [not null]
+  document_id uuid
+  item_hash bytea [not null]
+  included_at timestamptz [not null]
+
+  indexes {
+    (audit_package_id, ordinal) [unique, name: 'unique_audit_package_items_audit_package_id_ordinal']
+    audit_package_id [name: 'ix_audit_package_items_audit_package_id']
+    document_id [name: 'ix_audit_package_items_document_id']
+  }
+
+  Note: '''
+  PostgreSQL UNIQUE NULLS NOT DISTINCT rule (not expressible in DBML): (audit_package_id,entity_type,entity_id,document_id).
+  '''
+}
+
+// Module: audit
+Table traceability_links {
+  id uuid [pk]
+  source_entity_type varchar(80) [not null]
+  source_entity_id uuid [not null]
+  target_entity_type varchar(80) [not null]
+  target_entity_id uuid [not null]
+  relationship_type varchar(80) [not null]
+  created_at timestamptz [not null]
+
+  indexes {
+    (source_entity_type, source_entity_id, target_entity_type, target_entity_id, relationship_type) [unique, name: 'unique_traceability_links_source_entity_type_source_en_8356ce3f']
+  }
+
+  Note: '''
+  CHECK/constraint-trigger rule (documentary in DBML): append-only; validated entity-type registry.
+  Append-only enforcement requires privileges plus a guard trigger; DBML cannot enforce UPDATE/DELETE/TRUNCATE revocation.
+  '''
+}
+
+// Physical foreign keys (all default to historical-data-preserving RESTRICT/NO ACTION semantics).
+Ref: role_permissions.role_id > roles.id [delete: restrict, update: no action]
+Ref: role_permissions.permission_id > permissions.id [delete: restrict, update: no action]
+Ref: role_permissions.granted_by > users.id [delete: restrict, update: no action]
+Ref: users.current_role_id > roles.id [delete: restrict, update: no action]
+Ref: user_role_assignments.user_id > users.id [delete: restrict, update: no action]
+Ref: user_role_assignments.role_id > roles.id [delete: restrict, update: no action]
+Ref: user_role_assignments.assigned_by > users.id [delete: restrict, update: no action]
+Ref: user_role_assignments.ended_by > users.id [delete: restrict, update: no action]
+Ref: user_sessions.user_id > users.id [delete: restrict, update: no action]
+Ref: login_events.user_id > users.id [delete: restrict, update: no action]
+Ref: customer_contacts.customer_id > customers.id [delete: restrict, update: no action]
+Ref: manufacturing_receivers.user_id > users.id [delete: restrict, update: no action]
+Ref: projects.customer_id > customers.id [delete: restrict, update: no action]
+Ref: projects.created_by > users.id [delete: restrict, update: no action]
+Ref: project_development_levels.project_id > projects.id [delete: restrict, update: no action]
+Ref: project_assignments.project_id > projects.id [delete: restrict, update: no action]
+Ref: project_assignments.user_id > users.id [delete: restrict, update: no action]
+Ref: project_assignments.assigned_by > users.id [delete: restrict, update: no action]
+Ref: project_assignments.unassigned_by > users.id [delete: restrict, update: no action]
+Ref: reference_list_items.type_id > reference_list_types.id [delete: restrict, update: no action]
+Ref: reference_list_items.project_id > projects.id [delete: restrict, update: no action]
+Ref: reference_list_items.created_by > users.id [delete: restrict, update: no action]
+Ref: fgpns.project_id > projects.id [delete: restrict, update: no action]
+Ref: documents.encryption_key_id > document_encryption_keys.id [delete: restrict, update: no action]
+Ref: documents.uploaded_by > users.id [delete: restrict, update: no action]
+Ref: document_signatures.document_id > documents.id [delete: restrict, update: no action]
+Ref: document_signatures.manufacturing_receiver_id > manufacturing_receivers.id [delete: restrict, update: no action]
+Ref: document_signatures.signer_user_id > users.id [delete: restrict, update: no action]
+Ref: document_signatures.uploaded_by > users.id [delete: restrict, update: no action]
+Ref: system_settings.updated_by > users.id [delete: restrict, update: no action]
+Ref: po_uploads.project_id > projects.id [delete: restrict, update: no action]
+Ref: po_uploads.document_id > documents.id [delete: restrict, update: no action]
+Ref: po_uploads.uploaded_by > users.id [delete: restrict, update: no action]
+Ref: po_extraction_runs.po_upload_id > po_uploads.id [delete: restrict, update: no action]
+Ref: po_extracted_values.extraction_run_id > po_extraction_runs.id [delete: restrict, update: no action]
+Ref: po_extracted_values.corrected_by > users.id [delete: restrict, update: no action]
+Ref: purchase_orders.project_id > projects.id [delete: restrict, update: no action]
+Ref: purchase_orders.current_version_id > purchase_order_versions.id [delete: restrict, update: no action]
+Ref: purchase_orders.created_by > users.id [delete: restrict, update: no action]
+Ref: purchase_order_items.purchase_order_id > purchase_orders.id [delete: restrict, update: no action]
+Ref: purchase_order_versions.purchase_order_id > purchase_orders.id [delete: restrict, update: no action]
+Ref: purchase_order_versions.po_upload_id > po_uploads.id [delete: restrict, update: no action]
+Ref: purchase_order_versions.customer_id > customers.id [delete: restrict, update: no action]
+Ref: purchase_order_versions.customer_contact_id > customer_contacts.id [delete: restrict, update: no action]
+Ref: purchase_order_versions.confirmed_by > users.id [delete: restrict, update: no action]
+Ref: purchase_order_version_items.po_version_id > purchase_order_versions.id [delete: restrict, update: no action]
+Ref: purchase_order_version_items.po_item_id > purchase_order_items.id [delete: restrict, update: no action]
+Ref: purchase_order_version_items.fgpn_id > fgpns.id [delete: restrict, update: no action]
+Ref: purchase_order_version_items.development_level_id > project_development_levels.id [delete: restrict, update: no action]
+Ref: po_version_comparisons.purchase_order_id > purchase_orders.id [delete: restrict, update: no action]
+Ref: po_version_comparisons.version_a_id > purchase_order_versions.id [delete: restrict, update: no action]
+Ref: po_version_comparisons.version_b_id > purchase_order_versions.id [delete: restrict, update: no action]
+Ref: po_version_comparisons.compared_by > users.id [delete: restrict, update: no action]
+Ref: po_version_comparison_items.comparison_id > po_version_comparisons.id [delete: restrict, update: no action]
+Ref: po_version_comparison_items.po_item_id > purchase_order_items.id [delete: restrict, update: no action]
+Ref: po_status_transition_roles.transition_id > po_allowed_status_transitions.id [delete: restrict, update: no action]
+Ref: po_status_transition_roles.role_id > roles.id [delete: restrict, update: no action]
+Ref: po_status_history.purchase_order_id > purchase_orders.id [delete: restrict, update: no action]
+Ref: po_status_history.transition_id > po_allowed_status_transitions.id [delete: restrict, update: no action]
+Ref: po_status_history.changed_by > users.id [delete: restrict, update: no action]
+Ref: production_events.project_id > projects.id [delete: restrict, update: no action]
+Ref: production_events.launch_operation_id > launch_operations.id [delete: restrict, update: no action]
+Ref: production_events.evidence_document_id > documents.id [delete: restrict, update: no action]
+Ref: production_events.recorded_by > users.id [delete: restrict, update: no action]
+Ref: production_event_items.production_event_id > production_events.id [delete: restrict, update: no action]
+Ref: production_event_items.po_item_id > purchase_order_items.id [delete: restrict, update: no action]
+Ref: materials.material_type_id > material_types.id [delete: restrict, update: no action]
+Ref: bom_imports.project_id > projects.id [delete: restrict, update: no action]
+Ref: bom_imports.source_document_id > documents.id [delete: restrict, update: no action]
+Ref: bom_imports.imported_by > users.id [delete: restrict, update: no action]
+Ref: bom_import_rows.bom_import_id > bom_imports.id [delete: restrict, update: no action]
+Ref: bom_revisions.project_id > projects.id [delete: restrict, update: no action]
+Ref: bom_revisions.created_from_import_id > bom_imports.id [delete: restrict, update: no action]
+Ref: bom_revisions.confirmed_by > users.id [delete: restrict, update: no action]
+Ref: bom_revision_items.bom_revision_id > bom_revisions.id [delete: restrict, update: no action]
+Ref: bom_revision_items.fgpn_id > fgpns.id [delete: restrict, update: no action]
+Ref: bom_revision_items.material_id > materials.id [delete: restrict, update: no action]
+Ref: bom_version_comparisons.old_revision_id > bom_revisions.id [delete: restrict, update: no action]
+Ref: bom_version_comparisons.new_revision_id > bom_revisions.id [delete: restrict, update: no action]
+Ref: bom_version_comparisons.compared_by > users.id [delete: restrict, update: no action]
+Ref: bom_version_comparison_items.comparison_id > bom_version_comparisons.id [delete: restrict, update: no action]
+Ref: bom_version_comparison_items.fgpn_id > fgpns.id [delete: restrict, update: no action]
+Ref: bom_version_comparison_items.material_id > materials.id [delete: restrict, update: no action]
+Ref: simulation_policies.project_id > projects.id [delete: restrict, update: no action]
+Ref: simulation_policies.created_by > users.id [delete: restrict, update: no action]
+Ref: simulation_policy_versions.policy_id > simulation_policies.id [delete: restrict, update: no action]
+Ref: simulation_policy_versions.created_by > users.id [delete: restrict, update: no action]
+Ref: launch_simulations.project_id > projects.id [delete: restrict, update: no action]
+Ref: launch_simulations.policy_version_id > simulation_policy_versions.id [delete: restrict, update: no action]
+Ref: launch_simulations.run_by > users.id [delete: restrict, update: no action]
+Ref: launch_simulations.draft_document_id > documents.id [delete: restrict, update: no action]
+Ref: simulation_purchase_orders.simulation_id > launch_simulations.id [delete: restrict, update: no action]
+Ref: simulation_purchase_orders.purchase_order_id > purchase_orders.id [delete: restrict, update: no action]
+Ref: simulation_purchase_orders.po_version_id > purchase_order_versions.id [delete: restrict, update: no action]
+Ref: simulation_item_results.simulation_po_id > simulation_purchase_orders.id [delete: restrict, update: no action]
+Ref: simulation_item_results.po_item_id > purchase_order_items.id [delete: restrict, update: no action]
+Ref: simulation_item_results.po_version_item_id > purchase_order_version_items.id [delete: restrict, update: no action]
+Ref: simulation_item_results.bom_revision_id > bom_revisions.id [delete: restrict, update: no action]
+Ref: simulation_stock_inputs.simulation_id > launch_simulations.id [delete: restrict, update: no action]
+Ref: simulation_stock_inputs.material_id > materials.id [delete: restrict, update: no action]
+Ref: simulation_future_arrival_inputs.simulation_id > launch_simulations.id [delete: restrict, update: no action]
+Ref: simulation_future_arrival_inputs.material_id > materials.id [delete: restrict, update: no action]
+Ref: simulation_future_arrival_inputs.future_arrival_id > future_stock_arrivals.id [delete: restrict, update: no action]
+Ref: simulation_material_allocations.simulation_item_result_id > simulation_item_results.id [delete: restrict, update: no action]
+Ref: simulation_material_allocations.material_id > materials.id [delete: restrict, update: no action]
+Ref: launch_operations.project_id > projects.id [delete: restrict, update: no action]
+Ref: launch_operations.simulation_id > launch_simulations.id [delete: restrict, update: no action]
+Ref: launch_operations.meeting_minutes_document_id > documents.id [delete: restrict, update: no action]
+Ref: launch_operations.approved_by > users.id [delete: restrict, update: no action]
+Ref: launch_operation_items.launch_operation_id > launch_operations.id [delete: restrict, update: no action]
+Ref: launch_operation_items.simulation_item_result_id > simulation_item_results.id [delete: restrict, update: no action]
+Ref: launch_operation_items.po_item_id > purchase_order_items.id [delete: restrict, update: no action]
+Ref: launch_operation_items.bom_revision_id > bom_revisions.id [delete: restrict, update: no action]
+Ref: bom_impact_reviews.project_id > projects.id [delete: restrict, update: no action]
+Ref: bom_impact_reviews.launch_operation_id > launch_operations.id [delete: restrict, update: no action]
+Ref: bom_impact_reviews.old_revision_id > bom_revisions.id [delete: restrict, update: no action]
+Ref: bom_impact_reviews.new_revision_id > bom_revisions.id [delete: restrict, update: no action]
+Ref: bom_impact_reviews.reviewed_by > users.id [delete: restrict, update: no action]
+Ref: bom_impact_review_items.review_id > bom_impact_reviews.id [delete: restrict, update: no action]
+Ref: bom_impact_review_items.material_id > materials.id [delete: restrict, update: no action]
+Ref: inventory_locations.project_id > projects.id [delete: restrict, update: no action]
+Ref: project_stock_pools.project_id > projects.id [delete: restrict, update: no action]
+Ref: project_stock_pools.stock_pool_id > stock_pools.id [delete: restrict, update: no action]
+Ref: project_stock_pools.mapped_by > users.id [delete: restrict, update: no action]
+Ref: stock_pool_locations.stock_pool_id > stock_pools.id [delete: restrict, update: no action]
+Ref: stock_pool_locations.location_id > inventory_locations.id [delete: restrict, update: no action]
+Ref: inventory_events.created_by > users.id [delete: restrict, update: no action]
+Ref: inventory_events.reversal_of_event_id > inventory_events.id [delete: restrict, update: no action]
+Ref: inventory_postings.event_id > inventory_events.id [delete: restrict, update: no action]
+Ref: inventory_postings.project_id > projects.id [delete: restrict, update: no action]
+Ref: inventory_postings.material_id > materials.id [delete: restrict, update: no action]
+Ref: inventory_postings.location_id > inventory_locations.id [delete: restrict, update: no action]
+Ref: stock_receptions.project_id > projects.id [delete: restrict, update: no action]
+Ref: stock_receptions.receiving_location_id > inventory_locations.id [delete: restrict, update: no action]
+Ref: stock_receptions.received_by > users.id [delete: restrict, update: no action]
+Ref: stock_reception_lines.reception_id > stock_receptions.id [delete: restrict, update: no action]
+Ref: stock_reception_lines.material_id > materials.id [delete: restrict, update: no action]
+Ref: stock_reception_lines.inventory_event_id > inventory_events.id [delete: restrict, update: no action]
+Ref: stock_reception_corrections.reception_line_id > stock_reception_lines.id [delete: restrict, update: no action]
+Ref: stock_reception_corrections.corrected_by > users.id [delete: restrict, update: no action]
+Ref: stock_reception_corrections.reversal_event_id > inventory_events.id [delete: restrict, update: no action]
+Ref: stock_reception_corrections.replacement_event_id > inventory_events.id [delete: restrict, update: no action]
+Ref: cutman_imports.project_id > projects.id [delete: restrict, update: no action]
+Ref: cutman_imports.stock_pool_id > stock_pools.id [delete: restrict, update: no action]
+Ref: cutman_imports.document_id > documents.id [delete: restrict, update: no action]
+Ref: cutman_imports.imported_by > users.id [delete: restrict, update: no action]
+Ref: cutman_import_lines.cutman_import_id > cutman_imports.id [delete: restrict, update: no action]
+Ref: cutman_import_lines.material_id > materials.id [delete: restrict, update: no action]
+Ref: cutman_import_lines.wip_location_id > inventory_locations.id [delete: restrict, update: no action]
+Ref: cutman_import_lines.inventory_event_id > inventory_events.id [delete: restrict, update: no action]
+Ref: future_stock_arrivals.project_id > projects.id [delete: restrict, update: no action]
+Ref: future_stock_arrivals.material_id > materials.id [delete: restrict, update: no action]
+Ref: future_stock_arrivals.destination_location_id > inventory_locations.id [delete: restrict, update: no action]
+Ref: future_stock_arrivals.entered_by > users.id [delete: restrict, update: no action]
+Ref: future_stock_arrivals.receipt_event_id > inventory_events.id [delete: restrict, update: no action]
+Ref: stock_thresholds.project_id > projects.id [delete: restrict, update: no action]
+Ref: stock_thresholds.material_id > materials.id [delete: restrict, update: no action]
+Ref: stock_thresholds.defined_by > users.id [delete: restrict, update: no action]
+Ref: warehouse_delivery_instructions.launch_operation_id > launch_operations.id [delete: restrict, update: no action]
+Ref: warehouse_delivery_instructions.project_id > projects.id [delete: restrict, update: no action]
+Ref: warehouse_delivery_instructions.created_by > users.id [delete: restrict, update: no action]
+Ref: warehouse_delivery_instruction_lines.instruction_id > warehouse_delivery_instructions.id [delete: restrict, update: no action]
+Ref: warehouse_delivery_instruction_lines.material_id > materials.id [delete: restrict, update: no action]
+Ref: delivery_codes.instruction_id > warehouse_delivery_instructions.id [delete: restrict, update: no action]
+Ref: delivery_codes.generated_by > users.id [delete: restrict, update: no action]
+Ref: delivery_codes.consumed_by > users.id [delete: restrict, update: no action]
+Ref: delivery_code_access_events.delivery_code_id > delivery_codes.id [delete: restrict, update: no action]
+Ref: delivery_code_access_events.entered_by > users.id [delete: restrict, update: no action]
+Ref: warehouse_delivery_documents.instruction_id > warehouse_delivery_instructions.id [delete: restrict, update: no action]
+Ref: warehouse_delivery_documents.document_id > documents.id [delete: restrict, update: no action]
+Ref: warehouse_delivery_documents.warehouse_leader_id > users.id [delete: restrict, update: no action]
+Ref: warehouse_delivery_documents.manufacturing_receiver_id > manufacturing_receivers.id [delete: restrict, update: no action]
+Ref: warehouse_delivery_receipts.warehouse_document_id > warehouse_delivery_documents.id [delete: restrict, update: no action]
+Ref: warehouse_delivery_receipts.signed_document_id > documents.id [delete: restrict, update: no action]
+Ref: warehouse_delivery_receipts.document_signature_id > document_signatures.id [delete: restrict, update: no action]
+Ref: warehouse_delivery_receipts.uploaded_by > users.id [delete: restrict, update: no action]
+Ref: warehouse_delivery_receipts.validated_by > users.id [delete: restrict, update: no action]
+Ref: warehouse_delivery_receipts.inventory_event_id > inventory_events.id [delete: restrict, update: no action]
+Ref: customer_delivery_instructions.project_id > projects.id [delete: restrict, update: no action]
+Ref: customer_delivery_instructions.purchase_order_id > purchase_orders.id [delete: restrict, update: no action]
+Ref: customer_delivery_instructions.delivery_method_id > delivery_methods.id [delete: restrict, update: no action]
+Ref: customer_delivery_instructions.generated_by > users.id [delete: restrict, update: no action]
+Ref: customer_delivery_instruction_lines.instruction_id > customer_delivery_instructions.id [delete: restrict, update: no action]
+Ref: customer_delivery_instruction_lines.po_item_id > purchase_order_items.id [delete: restrict, update: no action]
+Ref: customer_delivery_instruction_lines.po_version_item_id > purchase_order_version_items.id [delete: restrict, update: no action]
+Ref: customer_delivery_documents.instruction_id > customer_delivery_instructions.id [delete: restrict, update: no action]
+Ref: customer_delivery_documents.document_id > documents.id [delete: restrict, update: no action]
+Ref: customer_deliveries.instruction_id > customer_delivery_instructions.id [delete: restrict, update: no action]
+Ref: customer_deliveries.project_id > projects.id [delete: restrict, update: no action]
+Ref: customer_deliveries.delivery_method_id > delivery_methods.id [delete: restrict, update: no action]
+Ref: customer_deliveries.method_cost_record_id > delivery_method_cost_records.id [delete: restrict, update: no action]
+Ref: customer_deliveries.created_by > users.id [delete: restrict, update: no action]
+Ref: customer_delivery_lines.customer_delivery_id > customer_deliveries.id [delete: restrict, update: no action]
+Ref: customer_delivery_lines.po_item_id > purchase_order_items.id [delete: restrict, update: no action]
+Ref: customer_delivery_lines.po_version_item_id > purchase_order_version_items.id [delete: restrict, update: no action]
+Ref: customer_delivery_lines.fgpn_id > fgpns.id [delete: restrict, update: no action]
+Ref: customer_delivery_lines.price_record_id > fgpn_price_records.id [delete: restrict, update: no action]
+Ref: delivery_confirmations.customer_delivery_id > customer_deliveries.id [delete: restrict, update: no action]
+Ref: delivery_confirmations.evidence_document_id > documents.id [delete: restrict, update: no action]
+Ref: delivery_confirmations.recorded_by > users.id [delete: restrict, update: no action]
+Ref: fgpn_price_records.project_id > projects.id [delete: restrict, update: no action]
+Ref: fgpn_price_records.fgpn_id > fgpns.id [delete: restrict, update: no action]
+Ref: fgpn_price_records.created_by > users.id [delete: restrict, update: no action]
+Ref: delivery_method_cost_records.delivery_method_id > delivery_methods.id [delete: restrict, update: no action]
+Ref: delivery_method_cost_records.project_id > projects.id [delete: restrict, update: no action]
+Ref: delivery_method_cost_records.created_by > users.id [delete: restrict, update: no action]
+Ref: material_cost_records.material_id > materials.id [delete: restrict, update: no action]
+Ref: material_cost_records.project_id > projects.id [delete: restrict, update: no action]
+Ref: material_cost_records.entered_by > users.id [delete: restrict, update: no action]
+Ref: sales_forecasts.project_id > projects.id [delete: restrict, update: no action]
+Ref: sales_forecasts.created_by > users.id [delete: restrict, update: no action]
+Ref: sales_forecast_lines.forecast_id > sales_forecasts.id [delete: restrict, update: no action]
+Ref: sales_forecast_lines.purchase_order_id > purchase_orders.id [delete: restrict, update: no action]
+Ref: sales_forecast_lines.po_item_id > purchase_order_items.id [delete: restrict, update: no action]
+Ref: sales_forecast_lines.fgpn_id > fgpns.id [delete: restrict, update: no action]
+Ref: sales_forecast_lines.price_record_id > fgpn_price_records.id [delete: restrict, update: no action]
+Ref: invoices.customer_delivery_id > customer_deliveries.id [delete: restrict, update: no action]
+Ref: invoices.document_id > documents.id [delete: restrict, update: no action]
+Ref: invoices.uploaded_by > users.id [delete: restrict, update: no action]
+Ref: audit_events.project_id > projects.id [delete: restrict, update: no action]
+Ref: audit_events.user_id > users.id [delete: restrict, update: no action]
+Ref: audit_events.document_id > documents.id [delete: restrict, update: no action]
+Ref: outbox_events.audit_event_id > audit_events.id [delete: restrict, update: no action]
+Ref: dashboard_alerts.project_id > projects.id [delete: restrict, update: no action]
+Ref: dashboard_alerts.acknowledged_by > users.id [delete: restrict, update: no action]
+Ref: audit_packages.project_id > projects.id [delete: restrict, update: no action]
+Ref: audit_packages.document_id > documents.id [delete: restrict, update: no action]
+Ref: audit_packages.generated_by > users.id [delete: restrict, update: no action]
+Ref: audit_package_items.audit_package_id > audit_packages.id [delete: restrict, update: no action]
+Ref: audit_package_items.document_id > documents.id [delete: restrict, update: no action]
+
+TableGroup iam_and_reference {
+  roles
+  permissions
+  role_permissions
+  users
+  user_role_assignments
+  user_sessions
+  login_events
+  customers
+  customer_contacts
+  manufacturing_receivers
+  delivery_methods
+  material_types
+  projects
+  project_development_levels
+  project_assignments
+  reference_list_types
+  reference_list_items
+  fgpns
+  document_encryption_keys
+  documents
+  document_signatures
+}
+
+TableGroup cross_cutting {
+  system_settings
+  idempotency_requests
+}
+
+TableGroup purchase_orders {
+  po_uploads
+  po_extraction_runs
+  po_extracted_values
+  purchase_orders
+  purchase_order_items
+  purchase_order_versions
+  purchase_order_version_items
+  po_version_comparisons
+  po_version_comparison_items
+  po_allowed_status_transitions
+  po_status_transition_roles
+  po_status_history
+  production_events
+  production_event_items
+}
+
+TableGroup bom_and_simulation {
+  materials
+  bom_imports
+  bom_import_rows
+  bom_revisions
+  bom_revision_items
+  bom_version_comparisons
+  bom_version_comparison_items
+  simulation_policies
+  simulation_policy_versions
+  launch_simulations
+  simulation_purchase_orders
+  simulation_item_results
+  simulation_stock_inputs
+  simulation_future_arrival_inputs
+  simulation_material_allocations
+  launch_operations
+  launch_operation_items
+  bom_impact_reviews
+  bom_impact_review_items
+}
+
+TableGroup inventory_ledger {
+  inventory_locations
+  stock_pools
+  project_stock_pools
+  stock_pool_locations
+  inventory_events
+  inventory_postings
+  stock_receptions
+  stock_reception_lines
+  stock_reception_corrections
+  cutman_imports
+  cutman_import_lines
+  future_stock_arrivals
+  stock_thresholds
+}
+
+TableGroup delivery_workflows {
+  warehouse_delivery_instructions
+  warehouse_delivery_instruction_lines
+  delivery_codes
+  delivery_code_access_events
+  warehouse_delivery_documents
+  warehouse_delivery_receipts
+  customer_delivery_instructions
+  customer_delivery_instruction_lines
+  customer_delivery_documents
+  customer_deliveries
+  customer_delivery_lines
+  delivery_confirmations
+}
+
+TableGroup finance {
+  fgpn_price_records
+  delivery_method_cost_records
+  material_cost_records
+  sales_forecasts
+  sales_forecast_lines
+  invoices
+}
+
+TableGroup audit_and_integration {
+  audit_stream_heads
+  audit_events
+  outbox_events
+  dashboard_alerts
+  audit_packages
+  audit_package_items
+  traceability_links
+}

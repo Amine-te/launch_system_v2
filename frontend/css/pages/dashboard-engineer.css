@@ -1,0 +1,79 @@
+/* ==========================================================================
+   dashboard-engineer.css
+   ========================================================================== */
+
+/* Launch Engineer dashboard */
+.engineer-dashboard { max-width:1500px; margin:0 auto; color:#000; }
+.engineer-dashboard-head { display:flex; align-items:center; justify-content:space-between; gap:24px; margin-bottom:22px; }
+.engineer-dashboard-head h1 { margin:0; color:#000; font-size:30px; line-height:1.2; font-weight:700; letter-spacing:-.025em; }
+.engineer-dashboard-head p { margin:7px 0 0; color:#111; font-size:15px; line-height:1.45; font-weight:400; }
+.engineer-dashboard-head-actions, .engineer-panel-links { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.engineer-dashboard-head .btn { min-height:46px; padding:0 18px; font-size:14px; font-weight:600; }
+
+.engineer-kpi-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; margin-bottom:20px; }
+.engineer-kpi-card { min-height:132px; display:flex; align-items:center; gap:16px; padding:22px; border:1px solid #D9E2E8; border-radius:15px; background:#fff; color:#000; text-align:left; box-shadow:0 7px 22px rgba(15,35,50,.045); }
+.engineer-kpi-icon { width:50px; height:50px; flex:0 0 50px; display:grid; place-items:center; border-radius:13px; }
+.engineer-kpi-icon .ui-icon { width:23px; height:23px; }
+.engineer-kpi-icon.blue { color:#087F9E; background:#E8F6F9; }
+.engineer-kpi-icon.navy { color:#1B4260; background:#EDF2F6; }
+.engineer-kpi-icon.violet { color:#6C4BC3; background:#F1EDFC; }
+.engineer-kpi-icon.green { color:#147A48; background:#EAF7F0; }
+.engineer-kpi-copy { min-width:0; display:flex; flex-direction:column; }
+.engineer-kpi-copy > span { color:#111; font-size:13px; line-height:1.35; font-weight:500; }
+.engineer-kpi-copy strong { margin-top:5px; color:#000; font-size:31px; line-height:1; font-weight:700; letter-spacing:-.035em; }
+.engineer-kpi-copy small { margin-top:7px; color:#272727; font-size:12.5px; line-height:1.35; font-weight:400; }
+
+.engineer-dashboard-grid { display:grid; grid-template-columns:minmax(0,1.65fr) minmax(330px,.75fr); align-items:start; gap:20px; margin-bottom:20px; }
+.engineer-panel { overflow:hidden; border:1px solid #D9E2E8; border-radius:15px; background:#fff; box-shadow:0 7px 22px rgba(15,35,50,.04); }
+.engineer-panel-head { min-height:79px; display:flex; align-items:center; justify-content:space-between; gap:18px; padding:18px 21px; border-bottom:1px solid #E2E8EC; }
+.engineer-panel-head h2 { margin:0; color:#000; font-size:19px; line-height:1.3; font-weight:700; letter-spacing:-.01em; }
+.engineer-panel-head p { margin:4px 0 0; color:#222; font-size:13px; line-height:1.4; font-weight:400; }
+.engineer-panel-head .btn { min-height:38px; padding:0 13px; font-size:12.5px; }
+.engineer-table-wrap { overflow-x:auto; }
+.engineer-po-table { min-width:1000px; }
+.engineer-po-table thead th { padding:13px 15px; color:#111; font-size:11.5px; font-weight:600; letter-spacing:.035em; background:#F7F9FA; }
+.engineer-po-table tbody tr { cursor:pointer; }
+.engineer-po-table tbody tr:hover { background:#F8FCFD; }
+.engineer-po-table td { padding:16px 15px; color:#000; font-size:13.5px; vertical-align:middle; }
+.engineer-po-table td > strong { display:block; color:#000; font-size:13.5px; font-weight:600; }
+.engineer-po-table td > span { display:block; margin-top:5px; color:#292929; font-size:12px; font-weight:400; }
+.engineer-quantity { min-width:112px; }
+.engineer-quantity strong { display:block; color:#000; font-size:12.5px; font-weight:600; }
+.engineer-quantity > span { display:block; width:100%; height:6px; margin-top:8px; overflow:hidden; border-radius:999px; background:#E8EDF0; }
+.engineer-quantity i { display:block; height:100%; border-radius:inherit; background:#1687A2; }
+.engineer-row-open { width:34px; height:34px; display:grid; place-items:center; border:1px solid #D6E0E6; border-radius:9px; background:#fff; color:#19526A; cursor:pointer; }
+.engineer-row-open .ui-icon { width:15px; height:15px; }
+
+.engineer-action-list { display:grid; gap:0; }
+.engineer-action-item { display:grid; grid-template-columns:42px minmax(0,1fr) auto; align-items:center; gap:12px; padding:15px 18px; border-bottom:1px solid #E5EAED; }
+.engineer-action-item:last-child { border-bottom:0; }
+.engineer-action-icon { width:42px; height:42px; display:grid; place-items:center; border-radius:11px; }
+.engineer-action-icon .ui-icon { width:19px; height:19px; }
+.engineer-action-icon.blue { color:#087F9E; background:#E8F6F9; }
+.engineer-action-icon.amber { color:#9B5B00; background:#FFF4E4; }
+.engineer-action-icon.green { color:#147A48; background:#EAF7F0; }
+.engineer-action-item > div { min-width:0; }
+.engineer-action-item strong { display:block; color:#000; font-size:13.5px; line-height:1.35; font-weight:600; }
+.engineer-action-item span:not(.engineer-action-icon) { display:block; margin-top:4px; color:#292929; font-size:12px; line-height:1.35; font-weight:400; }
+.engineer-action-item .btn { min-height:36px; padding:0 11px; white-space:nowrap; font-size:12px; }
+.engineer-no-action { min-height:180px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; color:#147A48; }
+.engineer-no-action .ui-icon { width:28px; height:28px; }
+.engineer-no-action strong { color:#000; font-size:14px; font-weight:600; }
+
+.engineer-activity-panel { margin-bottom:4px; }
+.engineer-activity-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+.engineer-activity-item { min-height:78px; display:grid; grid-template-columns:42px minmax(0,1fr) auto auto auto 18px; align-items:center; gap:12px; padding:15px 18px; border:0; border-right:1px solid #E5EAED; border-bottom:1px solid #E5EAED; background:#fff; color:#000; text-align:left; cursor:pointer; }
+.engineer-activity-item:nth-child(2n) { border-right:0; }
+.engineer-activity-item:hover { background:#F8FCFD; }
+.engineer-activity-type { width:42px; height:42px; display:grid; place-items:center; border-radius:11px; }
+.engineer-activity-type.manufacturing { color:#6C4BC3; background:#F1EDFC; }
+.engineer-activity-type.customer { color:#087F9E; background:#E8F6F9; }
+.engineer-activity-type .ui-icon { width:19px; height:19px; }
+.engineer-activity-main { min-width:0; display:flex; flex-direction:column; gap:4px; }
+.engineer-activity-main strong { color:#000; font-size:13.5px; font-weight:600; }
+.engineer-activity-main small { overflow:hidden; color:#292929; font-size:12px; font-weight:400; text-overflow:ellipsis; white-space:nowrap; }
+.engineer-activity-date { color:#111; font-size:12px; font-weight:500; white-space:nowrap; }
+.engineer-delivery-kind { display:inline-flex; align-items:center; min-height:27px; padding:0 9px; border-radius:999px; color:#000; font-size:11.5px; line-height:1; font-weight:500; white-space:nowrap; }
+.engineer-delivery-kind.manufacturing { background:#F1EDFC; }
+.engineer-delivery-kind.customer { background:#E8F6F9; }
+.engineer-activity-item > .ui-icon { width:16px; height:16px; color:#4D6774; }

@@ -1,0 +1,48 @@
+/* ==========================================================================
+   main.css — single entry point, imports all stylesheets in the SAME
+   cascade order as the original monolithic styles.css so visual output
+   is unchanged. Do not reorder these imports without checking for
+   specificity/override conflicts between files.
+   ========================================================================== */
+
+/* Foundation */
+@import url("./base.css");
+
+/* Structural layout */
+@import url("./components/sidebar.css");
+@import url("./layout.css");
+@import url("./components/topbar.css");
+
+/* Shared components (used across multiple pages) */
+@import url("./components/ui-core.css");
+@import url("./components/workspace.css");
+@import url("./components/stepper.css");
+
+/* Page-specific: delivery + admin appear early in original cascade */
+@import url("./pages/delivery.css");
+@import url("./pages/admin.css");
+
+/* More shared components */
+@import url("./components/timeline.css");
+@import url("./components/upload.css");
+@import url("./components/modal.css");
+@import url("./components/bom-tree.css");
+@import url("./components/diff-table.css");
+@import url("./components/progress.css");
+@import url("./components/buttons.css");
+@import url("./components/table.css");
+
+/* Page-specific */
+@import url("./pages/simulation.css");
+@import url("./components/forms.css");
+@import url("./pages/audit.css");
+@import url("./components/icons.css");
+@import url("./pages/dashboard-engineer.css");
+@import url("./pages/dashboard-manager.css");
+@import url("./pages/dashboard-plant.css");
+@import url("./pages/po-intake.css");
+@import url("./pages/projects.css");
+@import url("./pages/stock.css");
+
+/* Late cascade overrides — MUST stay last (see file header) */
+@import url("./components/theme-refinements.css");

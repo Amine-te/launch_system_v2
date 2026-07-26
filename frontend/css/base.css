@@ -1,0 +1,54 @@
+/* ==========================================================================
+   base.css
+   CSS custom properties (design tokens) + global reset + base body/app rules.
+   ========================================================================== */
+
+:root {
+  --primary: #007C9E;
+  --primary-dark: #00627b;
+  --primary-light: #E7F5F8;
+  --success: #138A3D;
+  --success-light: #EEF8F1;
+  --warning: #D97706;
+  --warning-light: #FFF7ED;
+  --danger: #DC2626;
+  --danger-light: #FEF2F2;
+  --info: #007C9E;
+  --info-light: #E7F5F8;
+  --purple: #7C3AED;
+  --purple-light: #F5F3FF;
+  --brown: #92400E;
+  --brown-light: #FEF3E2;
+  --bg: #F8FAFC;
+  --card: #FFFFFF;
+  --ink: #000000;
+  --ink-soft: #111111;
+  --ink-faint: #262626;
+  --border: #E2E8F0;
+  --border-soft: #EDF1F5;
+  --radius: 10px;
+  --font-ui: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-ui);
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.5;
+  height: 100vh;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  display: flex;
+  height: 100vh;
+}

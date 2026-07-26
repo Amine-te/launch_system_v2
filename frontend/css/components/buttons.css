@@ -1,0 +1,83 @@
+/* ==========================================================================
+   buttons.css
+   ========================================================================== */
+
+/* Action icon buttons */
+.icon-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.icon-btn {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--ink-soft);
+  position: relative;
+}
+
+.icon-btn:hover {
+  background: var(--bg);
+  color: var(--primary);
+}
+
+.icon-btn.danger-hover:hover {
+  color: var(--danger);
+  border-color: #FCA5A5;
+  background: var(--danger-light);
+}
+
+.icon-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.icon-btn.disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+
+.icon-btn.disabled:hover {
+  background: var(--card);
+  color: var(--ink-soft);
+  border-color: var(--border);
+}
+
+.icon-btn .btn-tip {
+  position: absolute;
+  bottom: calc(100% + 7px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 5px 9px;
+  border-radius: 6px;
+  white-space: nowrap;
+  display: none;
+  pointer-events: none;
+  z-index: 40;
+}
+
+.icon-btn:hover .btn-tip {
+  display: block;
+}
+
+.icon-btn .btn-tip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: var(--ink);
+}

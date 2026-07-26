@@ -1,0 +1,165 @@
+/* ==========================================================================
+   theme-refinements.css
+   Later cascade overrides from the original stylesheet (dark sidebar theme,
+   high-contrast typography, production-density spacing). Must be imported
+   LAST in main.css so these overrides win, exactly as in the original
+   single-file cascade order.
+   ========================================================================== */
+
+/* ===== PRODUCTION UI REFINEMENT ===== */
+:root {
+  --primary: #0B819F;
+  --primary-dark: #075C73;
+  --primary-light: #E8F6F8;
+  --bg: #F4F7FA;
+  --ink: #000000;
+  --ink-soft: #111111;
+  --ink-faint: #262626;
+  --border: #DDE5EC;
+  --border-soft: #EAF0F4;
+  --radius: 12px;
+}
+
+.sidebar {
+  width: 250px;
+  min-width: 76px;
+  background: #1B3653;
+  border-right: 0;
+  box-shadow: 8px 0 24px rgba(14, 35, 55, .10);
+}
+
+.sidebar-logo {
+  justify-content: flex-start;
+  padding: 20px 18px;
+  margin-bottom: 6px;
+  border-color: rgba(255, 255, 255, .08);
+}
+
+.brand-lockup { display:flex; flex-direction:column; align-items:flex-start; gap:7px; min-width:0; width:100%; }
+.brand-image {
+  width:112px; height:40px; flex:0 0 auto; border-radius:8px; object-fit:cover;
+  object-position:center 50%; filter:saturate(.95) contrast(1.05);
+  box-shadow:0 5px 16px rgba(0,0,0,.2);
+}
+.brand-symbol {
+  width:36px; height:36px; border-radius:10px; flex:0 0 auto;
+  display:grid; place-items:center; color:white; font-weight:800; font-size:13px;
+  background:linear-gradient(145deg, #12A1BF, #08718E);
+  box-shadow:0 8px 20px rgba(15, 150, 180, .28);
+}
+.brand-copy { display:flex; align-items:baseline; gap:7px; min-width:0; white-space:nowrap; }
+.brand-product { color:#fff; font-weight:750; font-size:13px; letter-spacing:-.02em; }
+.brand-suite { color:#A4B4C7; font-size:8.5px; letter-spacing:.08em; text-transform:uppercase; }
+.sidebar.collapsed .brand-copy { display:none; }
+.sidebar.collapsed .sidebar-logo { justify-content:center; }
+.sidebar.collapsed .brand-lockup { align-items:center; }
+.sidebar.collapsed .brand-image { width:44px; height:38px; }
+
+.role-switcher { border-color:rgba(255,255,255,.08); padding:12px 14px 14px; }
+.role-switcher label { color:#91A4B9; }
+select#roleSelect {
+  color:#F4F7FA; background:#254563; border-color:#496884; padding:9px 10px;
+}
+.nav-item { color:#BAC7D4; padding:9px 11px; margin-bottom:2px; }
+.nav-item:hover { color:#F4F8FB; background:rgba(255,255,255,.055); }
+.nav-item.active { color:#fff; background:linear-gradient(90deg, rgba(16,151,181,.30), rgba(16,151,181,.12)); box-shadow:inset 3px 0 #1BB4D0; }
+.nav-sub { color:#A8B7C7; }
+.nav-sub:hover { color:#fff; background:rgba(255,255,255,.045); }
+.nav-sub.active { color:#75D8E9; background:rgba(17,156,185,.12); }
+.sidebar-footer { border-color:rgba(255,255,255,.08); }
+.sidebar-copy { color:#8195AA; }
+
+.topbar { box-shadow:0 1px 0 var(--border), 0 8px 22px rgba(15, 31, 50, .035); }
+.topbar-logo { display:none; }
+.content { padding:26px 28px 40px; }
+.card, .kpi-card, .workspace-header {
+  border-color:var(--border); box-shadow:0 1px 2px rgba(16, 31, 50, .03), 0 8px 24px rgba(16, 31, 50, .035);
+}
+.page-title { font-size:22px; letter-spacing:-.025em; }
+.kpi-value { letter-spacing:-.035em; }
+table thead th { background:#F7F9FB; color:#657387; }
+table tbody tr:hover { background:#F8FBFC; }
+.btn.primary { box-shadow:0 4px 12px rgba(11,129,159,.18); }
+
+/* High-contrast content typography: operational text must remain fully legible. */
+.content { color:#000; }
+.content .hint, .content .page-sub, .content .e-sub, .content .kpi-label,
+.content .ws-meta-item .l { color:#111 !important; opacity:1; }
+.content input, .content select, .content textarea { color:#000; }
+.content input::placeholder, .content textarea::placeholder { color:#333; opacity:1; }
+
+/* Production-scale interface density for industrial daily use. */
+body { font-size:15px; }
+.sidebar { width:268px; }
+.nav-scroll { padding:13px 12px; }
+.nav-item { min-height:44px; padding:11px 13px; gap:11px; font-size:13.5px; }
+.nav-item .ic { width:18px; height:18px; }
+.nav-sub { min-height:38px; padding:9px 12px 9px 22px; font-size:13px; }
+.nav-section-label { padding:17px 12px 7px; font-size:11px; }
+.brand-product { font-size:14.5px; }
+.brand-suite { font-size:9.5px; }
+.role-switcher label { font-size:11px; }
+select#roleSelect { min-height:42px; padding:9px 11px; font-size:13.5px; }
+.topbar { height:64px; padding:0 24px; gap:16px; }
+.breadcrumb { font-size:14px; }
+.search-bar { width:280px; min-height:42px; padding:9px 12px; font-size:13.5px; }
+.search-bar input { font-size:13.5px; }
+.qa-btn { min-height:40px; padding:9px 14px; font-size:13.5px; }
+.content { padding:30px 34px 48px; }
+.page-title-row { margin-bottom:22px; }
+.page-title { font-size:25px; }
+.page-sub { margin-top:4px; font-size:13.5px; }
+.card { padding:21px 23px; }
+.kpi-card { padding:19px 20px; }
+.kpi-label { font-size:12px; }
+.kpi-value { font-size:27px; }
+.section-title { margin-bottom:16px; font-size:15px; }
+.section-title .hint { font-size:12.5px; }
+table { font-size:13.5px; }
+th { padding:12px 14px; font-size:11.5px; }
+td { padding:14px; }
+.mono { font-size:13px; }
+.badge { padding:5px 10px; font-size:12px; }
+.btn { min-height:40px; padding:10px 16px; border-radius:9px; gap:7px; font-size:13.5px; }
+.btn.sm { min-height:34px; padding:7px 12px; font-size:12.5px; }
+.btn svg, .ui-icon { width:17px; height:17px; }
+.workspace-header { padding:22px 24px; margin-bottom:17px; }
+.ws-id { padding:4px 9px; font-size:12px; }
+.ws-title { margin-top:9px; font-size:22px; }
+.ws-meta { gap:22px; margin-top:13px; }
+.ws-meta-item { font-size:13px; }
+.ws-meta-item .l { margin-bottom:4px; font-size:11px; }
+.tabs { margin-bottom:22px; gap:4px; }
+.tab { padding:12px 16px; font-size:13.5px; }
+.tt-search { width:250px; min-height:42px; padding:9px 12px; }
+.tt-search input, .tt-select, .sim-select, .coef-input { min-height:42px; font-size:13.5px; }
+.sim-field-label { margin-bottom:9px; font-size:11.5px; }
+.project-po-overview-head { padding:22px 24px; }
+.project-po-overview-head h3 { font-size:18px; }
+.project-po-overview-head p { font-size:12.5px; }
+.project-po-table th { padding:13px 16px; font-size:10.5px; }
+.project-po-table td { padding:17px 16px; font-size:13px; }
+.project-po-number strong { font-size:13.5px; }
+.project-po-number span, .po-last-activity strong { font-size:11.5px; }
+.project-po-bom-state .badge { font-size:11px; }
+.project-po-bom-state small { font-size:10.5px; }
+.po-last-activity span { font-size:10.5px; }
+.po-status-primary .badge { min-width:112px; padding:7px 11px; font-size:11.5px; }
+.po-current-status-card { min-height:190px; padding:28px; }
+.po-current-status-card > span { font-size:11px; }
+.po-current-status-card > strong { font-size:32px; }
+.po-current-status-card > small { font-size:12.5px; }
+.po-information-item { padding:19px 20px; }
+.po-information-item span { font-size:10.5px; }
+.po-information-item strong { font-size:13.5px; }
+.po-audit-metric { padding:16px; }
+.po-audit-metric span { font-size:10px; }
+.po-audit-metric strong { font-size:14px; }
+.po-audit-action strong { font-size:12px; }
+.po-audit-action span, .po-audit-evidence { font-size:10.5px; }
+.project-mfg-simple { padding:0; overflow:hidden; margin-bottom:18px; }
+.project-mfg-simple-head { display:flex; align-items:center; justify-content:space-between; gap:18px; padding:20px 22px; border-bottom:1px solid var(--border); }
+.project-mfg-simple-head h3 { margin:0; color:#000; font-size:17px; font-weight:800; }
+.project-mfg-simple-head p { margin:4px 0 0; color:#111; font-size:12.5px; }
+.project-mfg-simple-controls { display:grid; grid-template-columns:minmax(260px,1fr) auto; align-items:end; gap:12px; padding:20px 22px 22px; background:#FAFBFC; }
+.project-mfg-simple-controls .btn { min-width:190px; justify-content:center; }

@@ -1,0 +1,128 @@
+/* ==========================================================================
+   timeline.css
+   ========================================================================== */
+
+/* timeline */
+.timeline {
+  position: relative;
+  padding-left: 26px;
+}
+
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 4px;
+  bottom: 4px;
+  width: 1.5px;
+  background: var(--border);
+}
+
+.tl-item {
+  position: relative;
+  padding-bottom: 20px;
+}
+
+.tl-item:last-child {
+  padding-bottom: 0;
+}
+
+.tl-dot {
+  position: absolute;
+  left: -26px;
+  top: 2px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--card);
+  border: 2px solid var(--primary);
+}
+
+.tl-dot.done {
+  background: var(--primary);
+}
+
+.tl-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tl-time {
+  font-size: 11.5px;
+  color: var(--ink-faint);
+  margin-top: 2px;
+}
+
+/* ===== NEW: Delivery timeline (horizontal) ===== */
+.h-timeline {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  margin: 10px 0 4px;
+}
+
+.h-tl-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  position: relative;
+}
+
+.h-tl-dot {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #F1F5F9;
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-faint);
+  z-index: 2;
+}
+
+.h-tl-step.done .h-tl-dot {
+  background: var(--success);
+  border-color: var(--success);
+  color: white;
+}
+
+.h-tl-step.active .h-tl-dot {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.h-tl-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-faint);
+  margin-top: 7px;
+  text-align: center;
+}
+
+.h-tl-step.done .h-tl-label,
+.h-tl-step.active .h-tl-label {
+  color: var(--ink);
+}
+
+.h-tl-line {
+  position: absolute;
+  top: 13px;
+  left: calc(-50% + 13px);
+  width: calc(100% - 26px);
+  height: 2px;
+  background: var(--border);
+  z-index: 1;
+}
+
+.h-tl-step:first-child .h-tl-line {
+  display: none;
+}
+
+.h-tl-step.done .h-tl-line {
+  background: var(--success);
+}
