@@ -4,9 +4,18 @@
 
    Owns the access token end-to-end: where it's stored, how it's attached
    to requests, and when it's cleared. Nothing outside this file should
-   read/write the stored token directly -- callers (account-switcher.js
-   today, and any other api/*.js module that needs an authenticated
-   request later) go through the functions exported here.
+   read/write the stored token directly -- callers (account-switcher.js,
+   and every other api/*.js module once it's wired to the real backend)
+   go through the functions exported here, in particular authFetch()
+   below for any authenticated request.
+
+   Token lifetime: currently a single JWT good for 24h (see
+   backend/app/core/security.py's access_token_expire_minutes), no refresh
+   token. That means a session silently expiring mid-use just logs the
+   user out (handled below) rather than transparently renewing -- fine for
+   now, but flagged here as a conscious choice: if 24h turns out to be too
+   short for real usage patterns, the fix is a refresh-token flow, not a
+   longer-lived access token.
    ========================================================================== */
 
 import { API_BASE_URL } from './config.js';
@@ -22,6 +31,13 @@ import { API_BASE_URL } from './config.js';
 // backend-set httpOnly cookie instead of a token this file has to handle
 // at all.
 const TOKEN_KEY = 'launchops.accessToken';
+
+// Fired on `window` whenever an authenticated request comes back 401 and
+// there was a session to lose (i.e. not just "you were never logged in").
+// account-switcher.js can't be imported here -- it already imports this
+// file, so importing it back would be circular -- so main.js listens for
+// this event instead and reacts by calling the switcher's own logout().
+export const SESSION_EXPIRED_EVENT = 'launchops:session-expired';
 
 function _getToken() {
   return sessionStorage.getItem(TOKEN_KEY);
@@ -47,6 +63,36 @@ function _request(path, options = {}) {
   });
 }
 
+/**
+ * The shared helper every authenticated request should go through --
+ * today that's just getCurrentUser() below, but this is the thing every
+ * other api/*.js module (boms.js, stock.js, purchase-orders.js, etc.)
+ * should switch to calling once it's wired to the real backend instead of
+ * mock data, so none of them have to duplicate "attach the token" or
+ * "handle a 401" logic themselves.
+ *
+ * Attaches the bearer token automatically if one is stored. On a 401,
+ * clears the token and -- if there *was* one (i.e. this wasn't just an
+ * anonymous request) -- fires SESSION_EXPIRED_EVENT so the app can bounce
+ * back to the login screen, then rejects with AuthError either way so the
+ * caller's .catch() still runs.
+ */
+export function authFetch(path, options = {}) {
+  const token = _getToken();
+  const hadToken = Boolean(token);
+  const headers = { ...(options.headers || {}) };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  return _request(path, { ...options, headers }).then(res => {
+    if (res.status === 401) {
+      _clearToken();
+      if (hadToken) window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
+      throw new AuthError('Session expired -- please log in again.');
+    }
+    return res;
+  });
+}
+
 /** Synchronous, cheap check: is there a token stored at all? Does not
  * verify it's still valid -- getCurrentUser() is what actually confirms
  * that against the backend. Useful for an initial "do I even try to
@@ -59,6 +105,11 @@ export function isAuthenticated() {
  * POST /auth/login, store the returned token, then resolve with the
  * logged-in user (by immediately calling GET /auth/me) so callers get a
  * full account object back from a single call.
+ *
+ * Deliberately uses the plain _request() helper, not authFetch(): there's
+ * no token yet at this point, and a wrong-password 401 here means
+ * "incorrect credentials", not "your session expired" -- authFetch's
+ * automatic session-expired event would be the wrong signal to fire.
  */
 export function login(email, password) {
   return _request('/auth/login', {
@@ -82,21 +133,14 @@ export function login(email, password) {
 }
 
 /**
- * GET /auth/me using the stored token. Rejects with AuthError if there's
- * no token, or if the backend says it's invalid/expired (and clears it
- * in that case so the app doesn't keep retrying a dead token).
+ * GET /auth/me via authFetch(). Rejects with AuthError if there's no
+ * token, or if the backend says it's invalid/expired (authFetch already
+ * clears it and fires SESSION_EXPIRED_EVENT in that case).
  */
 export function getCurrentUser() {
-  const token = _getToken();
-  if (!token) return Promise.reject(new AuthError('Not logged in.'));
+  if (!_getToken()) return Promise.reject(new AuthError('Not logged in.'));
 
-  return _request('/auth/me', {
-    headers: { Authorization: `Bearer ${token}` },
-  }).then(res => {
-    if (res.status === 401) {
-      _clearToken();
-      throw new AuthError('Session expired -- please log in again.');
-    }
+  return authFetch('/auth/me').then(res => {
     if (!res.ok) throw new Error(`Could not load account (${res.status}).`);
     return res.json();
   });

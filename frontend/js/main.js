@@ -11,6 +11,7 @@ import { ROLE_PERSONA } from './components/nav-config.js';
 import { applyAccountChange, initSidebarState, renderNav } from './components/nav-render.js';
 import { renderQuickLogin } from './components/quick-login.js';
 import { renderTopbarWidgets } from './components/topbar.js';
+import { SESSION_EXPIRED_EVENT } from './api/auth.js';
 import { renderPage } from './pages/router.js';
 import { state } from './state.js';
 
@@ -57,6 +58,13 @@ function showAuthScreen() {
       if (appEl) appEl.classList.add('is-hidden');
       if (authScreenEl) authScreenEl.classList.remove('is-hidden');
     }
+
+// Any api/*.js module using authFetch() (auth.js's own getCurrentUser(),
+// and any other module wired to the real backend later) fires this when a
+// request comes back 401 with a session actually having existed. Reacting
+// the same way manual logout does keeps this a single code path, not a
+// second "who's logged in" state to keep in sync with account-switcher.js.
+window.addEventListener(SESSION_EXPIRED_EVENT, () => { logout(); });
 
 initSidebarState();
 renderQuickLogin('quickLoginGrid');
