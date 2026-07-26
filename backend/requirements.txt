@@ -11,3 +11,11 @@ psycopg2-binary==2.9.10
 pydantic==2.10.3
 pydantic-settings==2.7.0
 python-dotenv==1.0.1
+email-validator==2.2.0
+
+# --- Auth (login endpoint: password hashing + JWTs) ---
+# bcrypt pinned <4.1: passlib 1.7.4 reads bcrypt.__about__.__version__,
+# which newer bcrypt releases removed, breaking hashing at runtime.
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
+pyjwt==2.10.1

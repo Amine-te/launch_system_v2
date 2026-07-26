@@ -10,6 +10,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from app.core.config import settings  # noqa: E402
 from app.db.base import Base  # noqa: E402
+import app.models  # noqa: E402,F401 -- registers every model on Base.metadata
 
 # this is the Alembic Config object, which provides access to the values
 # within the .ini file in use.
@@ -24,10 +25,9 @@ config.set_main_option("sqlalchemy.url", settings.database_url)
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# target_metadata drives autogenerate. Empty for now since no models exist
-# yet -- once models are added under app/models/ and imported into
-# app/db/base.py (or imported here), Base.metadata will include them
-# automatically.
+# target_metadata drives autogenerate. Populated by the `import app.models`
+# above -- every model that subclasses Base and lives under app/models/ (and
+# is imported from app/models/__init__.py) shows up here automatically.
 target_metadata = Base.metadata
 
 
