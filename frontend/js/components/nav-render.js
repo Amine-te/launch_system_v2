@@ -147,7 +147,14 @@ window.addEventListener('popstate',event => {
 
 resetBrowserNavigationState();
 
-export function applyAccountChange(account) { state.currentRole = account.role; state.expandedGroups = {}; state.currentPage = 'dashboard'; state.navigationHistory = []; resetBrowserNavigationState(); state.productionStatusFilter = 'All'; poSelected.clear(); renderAll(); }
+export function applyAccountChange(account) {
+      // Logged-out state now also fires onAccountChange (with null), since
+      // account-switcher.js's logout() is a real thing now, not a stub.
+      // There's no role to switch to in that case -- leave whatever the
+      // user was last looking at alone rather than crashing on
+      // account.role.
+      if (!account) return;
+      state.currentRole = account.role; state.expandedGroups = {}; state.currentPage = 'dashboard'; state.navigationHistory = []; resetBrowserNavigationState(); state.productionStatusFilter = 'All'; poSelected.clear(); renderAll(); }
 
 export function navigate(page, options = {}) {
       if (page === 'sim-history') page = 'sim-launch';
