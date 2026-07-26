@@ -52,3 +52,11 @@ body {
   display: flex;
   height: 100vh;
 }
+
+/* Utility: hides an element regardless of its own display rule (e.g. #app's
+   display:flex above would otherwise win over the `hidden` attribute, since
+   authored CSS beats the UA stylesheet). Used to gate #app behind the
+   full-screen login view in authScreen. */
+.is-hidden {
+  display: none !important;
+}

@@ -10,6 +10,7 @@
 
 /* Structural layout */
 @import url("./components/sidebar.css");
+@import url("./components/auth-screen.css");
 @import url("./layout.css");
 @import url("./components/topbar.css");
 

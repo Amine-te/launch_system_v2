@@ -13,7 +13,20 @@
 
 <body>
 
-  <div id="app">
+  <div id="authScreen" class="auth-screen">
+    <div class="auth-card">
+      <img class="auth-logo" src="./assets/adient.png" alt="Adient logo">
+      <div class="auth-title">LaunchOps</div>
+      <div class="auth-subtitle">PO Control Center</div>
+      <div id="authContainer"></div>
+      <div class="auth-quick-login">
+        <div class="auth-quick-login-label">Quick login (demo accounts)</div>
+        <div class="auth-quick-login-grid" id="quickLoginGrid"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="app" class="is-hidden">
     <div class="sidebar">
       <div class="sidebar-logo">
         <div class="brand-lockup" aria-label="Adient LaunchOps">
@@ -23,7 +36,7 @@
       </div>
       <div class="role-switcher">
         <label>Account</label>
-        <div id="roleSelect"></div>
+        <div id="sidebarAccount"></div>
       </div>
       <div class="nav-scroll" id="navScroll"></div>
       <div class="sidebar-footer">

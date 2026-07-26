@@ -204,6 +204,36 @@
   justify-content: center;
 }
 
+/* Sidebar account chip: shows who's logged in + a logout button, driven by
+   main.js via account-switcher.js's public getCurrentAccount()/logout()
+   (the switcher itself no longer renders inside the sidebar -- see Step 6). */
+.sidebar-account {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-account-email {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-account-role {
+  font-size: 11px;
+  color: var(--ink-faint);
+  text-transform: capitalize;
+  margin-bottom: 6px;
+}
+
+.sidebar-account .sidebar-logout-btn {
+  width: 100%;
+  justify-content: center;
+}
+
 .nav-scroll {
   flex: 1;
   overflow-y: auto;
