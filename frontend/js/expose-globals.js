@@ -16,7 +16,7 @@ import { closeModal, confirmModalAction, openModal } from './components/modal.js
 import { navigate, navigateBack, openBomVersionCompare, openPn, openPo, openPoVersionCompare, showPnTab, showProjectTab, stop, toggleExplorer, toggleGroup, toggleSidebar } from './components/nav-render.js';
 import { approveAllBomImportRows, bomImportSelectFile, bomImportUseExample, closeBomImport, downloadBomExample, importValidatedBom, openPoBomUploader, setMaterialFilter, setMaterialSearch, toggleBomImportRow, updateBomImportCell, validateBomImportFields } from './components/shared-tables.js';
 import { openGlobalSearch, setGlobalSearch, toggleNotif, toggleQA } from './components/topbar.js';
-import { adminAssignProject, adminCloseUserForm, adminDeleteReferenceEntry, adminOpenReferenceForm, adminOpenUserForm, adminResetPassword, adminSaveReferenceEntry, adminSaveUser, adminSelectReferenceModule, adminSetAssignmentDraft, adminSetLoginFilter, adminSetReferenceDraft, adminSetUserDraft, adminSetUserFilter, adminToggleReferenceEntry, adminToggleUserStatus, adminUnassignProject, adminUnlockUser } from './pages/admin.js';
+import { adminAssignProject, adminCloseReferenceForm, adminCloseUserForm, adminDeleteReferenceEntry, adminOpenReferenceForm, adminOpenUserForm, adminSaveReferenceEntry, adminSaveUser, adminSelectReferenceModule, adminSetAssignmentDraft, adminSetLoginFilter, adminSetReferenceDraft, adminSetUserDraft, adminSetUserFilter, adminToggleReferenceEntry, adminToggleUserStatus, adminUnassignProject, adminUnlockUser } from './pages/admin.js';
 import { openAdminUser, openAuditDetail, resetAuditFilters, setAuditFilter, setAuditSearch } from './pages/audit.js';
 import { custWizardCancel, custWizardGoStep, custWizardNext, custWizardSaveDelivery, custWizardSelectAllFgpns, custWizardSetFgpnQty, custWizardSetMethod, custWizardSetPo, custWizardSetProject, custWizardToggleFgpn, openCustDelivery, printCustomerDeliveryInstruction, recordShipmentConfirmation, resetCustFilters, setCustFilter, setCustSearch, showCustTab } from './pages/customer-delivery.js';
 import { resetInvoiceFilters, setInvoiceFilter, setInvoiceSearch, setRevenueFilter } from './pages/finance.js';
@@ -35,10 +35,10 @@ Object.assign(window, {
   addTransitMaterial,
   adminAssignProject,
   adminCloseUserForm,
+  adminCloseReferenceForm,
   adminDeleteReferenceEntry,
   adminOpenReferenceForm,
   adminOpenUserForm,
-  adminResetPassword,
   adminSaveReferenceEntry,
   adminSaveUser,
   adminSelectReferenceModule,

@@ -5,7 +5,8 @@
 import { openModal } from '../components/modal.js';
 import { navigate, navigateBack, openPo } from '../components/nav-render.js';
 import { assignedProjectNames, canWriteProject, pnsForPo, uniqueValues, writableProjects } from '../components/shared-tables.js';
-import { ADMIN_REFERENCE_LISTS, AUDIT_LOGS, CONFIRMATION_METHODS, CUST_DELIVERIES, CUST_DELIVERY_STEPS, DELIVERY_METHOD_COSTS, INVOICES, MFG_DELIVERIES, POS, PO_LINE_SEED, PO_STATUS_FLOW, PRICES, PROJECTS, transportCostFor } from '../data/mock-data.js';
+import { ADMIN_REFERENCE_LISTS } from '../data/admin-store.js';
+import { AUDIT_LOGS, CONFIRMATION_METHODS, CUST_DELIVERIES, CUST_DELIVERY_STEPS, DELIVERY_METHOD_COSTS, INVOICES, MFG_DELIVERIES, POS, PO_LINE_SEED, PO_STATUS_FLOW, PRICES, PROJECTS, transportCostFor } from '../data/mock-data.js';
 import { renderAll } from '../main.js';
 import { mfgDeliveryPnQuantities, workspaceCanDeleteDelivery, workspaceDeleteIcon } from './manufacturing-delivery.js';
 import { poEsc } from './po-intake.js';

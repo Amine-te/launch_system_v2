@@ -19,6 +19,9 @@ def main() -> None:
     parser.add_argument(
         "--role", choices=[r.value for r in UserRole], default="engineer"
     )
+    parser.add_argument(
+        "--full-name", default="", help="Optional -- full_name is required by the schema but not by this script."
+    )
     args = parser.parse_args()
 
     db = SessionLocal()
@@ -26,6 +29,7 @@ def main() -> None:
         user = User(
             email=args.email,
             hashed_password=get_password_hash(args.password),
+            full_name=args.full_name,
             role=UserRole(args.role),
         )
         db.add(user)

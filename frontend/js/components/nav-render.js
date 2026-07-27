@@ -11,7 +11,7 @@ import { renderAll } from '../main.js';
 import { openProjectForm } from '../pages/projects.js';
 import { productionActor } from '../pages/purchase-orders.js';
 import { renderPage } from '../pages/router.js';
-import { state } from '../state.js';
+import { persistCurrentPage, state } from '../state.js';
 import { chevIcon, icon } from '../utils/icons.js';
 import { poSelected } from '../utils/table-state.js';
 
@@ -85,18 +85,28 @@ export function captureNavigationState() {
       };
     }
 
-export function restoreNavigationState(state) {
-      state.currentPage = state.page === 'sim-history' ? 'sim-launch' : (state.page === 'production-board' ? 'po-list' : state.page);
-      state.openContext = { ...state.openContext, ...(state.openContext || {}) };
-      state.activeTab = { ...state.activeTab, ...(state.activeTab || {}) };
-      state.openMfgDeliveryId = state.openMfgDeliveryId || state.openMfgDeliveryId;
-      state.mfgActiveTab = state.mfgActiveTab || 'Overview';
-      state.openCustDeliveryId = state.openCustDeliveryId || state.openCustDeliveryId;
-      state.custActiveTab = state.custActiveTab || 'Overview';
-      state.projectOpsSelectedPo = state.projectOpsSelectedPo || '';
+export function restoreNavigationState(saved) {
+      // BUGFIX: this used to take its parameter as `state`, shadowing the
+      // module-level `state` import for the rest of the function body.
+      // Every line below looked like it was restoring the app's state, but
+      // was actually just mutating fields on the throwaway snapshot object
+      // handed in -- renderAll() then rendered off the *real* state.currentPage
+      // unchanged from before this call. Net effect: "back" navigation ran
+      // without error but silently never changed the page (or context tabs,
+      // scroll position, etc.) it claimed to restore. Renamed the parameter
+      // to `saved` and apply its values onto the real `state` instead.
+      state.currentPage = saved.page === 'sim-history' ? 'sim-launch' : (saved.page === 'production-board' ? 'po-list' : saved.page);
+      persistCurrentPage(state.currentPage);
+      state.openContext = { ...state.openContext, ...(saved.openContext || {}) };
+      state.activeTab = { ...state.activeTab, ...(saved.activeTab || {}) };
+      state.openMfgDeliveryId = saved.openMfgDeliveryId || state.openMfgDeliveryId;
+      state.mfgActiveTab = saved.mfgActiveTab || 'Overview';
+      state.openCustDeliveryId = saved.openCustDeliveryId || state.openCustDeliveryId;
+      state.custActiveTab = saved.custActiveTab || 'Overview';
+      state.projectOpsSelectedPo = saved.projectOpsSelectedPo || '';
       state.notifOpen = false; state.qaOpen = false; state.gsOpen = false;
       renderAll();
-      requestAnimationFrame(() => window.scrollTo({ top:Number(state.scrollY || 0), behavior:'auto' }));
+      requestAnimationFrame(() => window.scrollTo({ top:Number(saved.scrollY || 0), behavior:'auto' }));
     }
 
 export function navigationStateLabel(state) {
@@ -154,7 +164,7 @@ export function applyAccountChange(account) {
       // user was last looking at alone rather than crashing on
       // account.role.
       if (!account) return;
-      state.currentRole = account.role; state.expandedGroups = {}; state.currentPage = 'dashboard'; state.navigationHistory = []; resetBrowserNavigationState(); state.productionStatusFilter = 'All'; poSelected.clear(); renderAll(); }
+      state.currentRole = account.role; state.expandedGroups = {}; state.currentPage = 'dashboard'; state.navigationHistory = []; resetBrowserNavigationState(); state.productionStatusFilter = 'All'; poSelected.clear(); persistCurrentPage('dashboard'); renderAll(); }
 
 export function navigate(page, options = {}) {
       if (page === 'sim-history') page = 'sim-launch';
@@ -172,6 +182,7 @@ export function navigate(page, options = {}) {
       if (state.currentRole === 'admin' && !adminAllowedPages.has(page)) {
         openModal('Restricted workspace', 'Administrators access the administration workspace only. Engineering, warehouse, and finance workflows remain unavailable for this role.');
         state.currentPage = 'admin-users';
+        persistCurrentPage('admin-users');
         renderAll();
         return;
       }
@@ -196,7 +207,7 @@ export function navigate(page, options = {}) {
         state.navigationBrowserDepth += 1;
         try { window.history.pushState({ launchOpsNavigation:true, depth:state.navigationBrowserDepth },'',window.location.href); } catch (error) { state.navigationBrowserDepth = 0; }
       }
-      state.currentPage = page; state.notifOpen = false; state.qaOpen = false; state.gsOpen = false; renderAll();
+      state.currentPage = page; state.notifOpen = false; state.qaOpen = false; state.gsOpen = false; persistCurrentPage(page); renderAll();
       if (!options.preserveScroll) requestAnimationFrame(() => window.scrollTo({ top:0, behavior:'auto' }));
     }
 

@@ -22,13 +22,13 @@ from app.models.user import User, UserRole
 
 # See the module docstring: keep this in lockstep with ROLE_PERSONA.
 DEMO_ACCOUNTS = [
-    {"email": "a.rahal@launchops.example", "role": UserRole.engineer},
-    {"email": "s.aitoubou@launchops.example", "role": UserRole.manager},
-    {"email": "k.benali@launchops.example", "role": UserRole.plant},
-    {"email": "m.elidrissi@launchops.example", "role": UserRole.wh_lead},
-    {"email": "i.chafai@launchops.example", "role": UserRole.wh_staff},
-    {"email": "y.mansouri@launchops.example", "role": UserRole.prod_coord},
-    {"email": "r.benali@launchops.example", "role": UserRole.admin},
+    {"email": "a.rahal@launchops.example", "full_name": "Amina Rahal", "role": UserRole.engineer},
+    {"email": "s.aitoubou@launchops.example", "full_name": "Sara Ait Oubou", "role": UserRole.manager},
+    {"email": "k.benali@launchops.example", "full_name": "Karim Benali", "role": UserRole.plant},
+    {"email": "m.elidrissi@launchops.example", "full_name": "Mehdi El Idrissi", "role": UserRole.wh_lead},
+    {"email": "i.chafai@launchops.example", "full_name": "Imane Chafai", "role": UserRole.wh_staff},
+    {"email": "y.mansouri@launchops.example", "full_name": "Youssef Mansouri", "role": UserRole.prod_coord},
+    {"email": "r.benali@launchops.example", "full_name": "Rachid Benali", "role": UserRole.admin},
 ]
 
 # Dev-only password, never a real secret -- see README.md.
@@ -43,12 +43,14 @@ def main() -> None:
             user = db.query(User).filter(User.email == account["email"]).first()
             if user:
                 user.hashed_password = hashed
+                user.full_name = account["full_name"]
                 user.role = account["role"]
                 action = "updated"
             else:
                 user = User(
                     email=account["email"],
                     hashed_password=hashed,
+                    full_name=account["full_name"],
                     role=account["role"],
                 )
                 db.add(user)

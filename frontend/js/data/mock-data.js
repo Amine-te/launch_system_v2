@@ -2,7 +2,7 @@
    mock-data.js
    ========================================================================== */
 
-import { MFG_DELIVERY_RECEIVERS, THRESHOLD_DEFAULTS } from '../utils/table-state.js';
+import { THRESHOLD_DEFAULTS } from '../utils/table-state.js';
 
 export const PROJECTS = [
       { id: 'PRJ-001', name: 'BMW X5', customer: 'BMW Group', customerRef: 'G05 LCI', engineer: 'A. Haddad', site: 'Tangier Plant 2', startDate: '2026-01-12', targetDate: '2026-10-15', description: 'Launch readiness and series preparation for the BMW X5 seat program.', status: 'On Track', statusType: 'success', pos: 3, progress: 72, health: 88 },
@@ -439,16 +439,11 @@ export const AUDIT_ENTITY_TIMELINE = [
       { title: 'Invoice Uploaded', done: false },
     ];
 
-export const ADMIN_USERS = [
-      { id:'ADM-001', name:'R. Benali', fullName:'Rachid Benali', username:'r.benali', email:'r.benali@launchops.example', role:'System Administrator', status:'Active', locked:false, failedAttempts:0, lastLogin:'2026-07-21 08:30', projects:[], phone:'+212 6 12 34 56 78', auth:'Password', location:'IT Administration' },
-      { id:'ADM-002', name:'S. Ait Oubou', fullName:'Sara Ait Oubou', username:'s.aitoubou', email:'s.aitoubou@launchops.example', role:'Launch Manager', status:'Active', locked:false, failedAttempts:0, lastLogin:'2026-07-20 16:10', projects:['Peugeot 208'], phone:'+212 6 11 22 33 44', auth:'Password', location:'Launch Department' },
-      { id:'ADM-003', name:'M. El Idrissi', fullName:'Mehdi El Idrissi', username:'m.elidrissi', email:'m.elidrissi@launchops.example', role:'Warehouse Team Leader', status:'Active', locked:true, failedAttempts:5, lastLogin:'2026-07-20 07:05', projects:[], phone:'+212 6 44 55 66 77', auth:'Password', location:'Main Warehouse' },
-      { id:'ADM-004', name:'A. Rahal', fullName:'Amina Rahal', username:'a.rahal', email:'a.rahal@launchops.example', role:'Launch Engineer', status:'Active', locked:false, failedAttempts:1, lastLogin:'2026-07-20 18:40', projects:['Renault Clio V','BMW X5'], phone:'+212 6 98 76 54 32', auth:'Password', location:'Tangier Plant 2' },
-      { id:'ADM-005', name:'Y. Mansouri', fullName:'Youssef Mansouri', username:'y.mansouri', email:'y.mansouri@launchops.example', role:'Production & Packing Coordinator', status:'Active', locked:false, failedAttempts:0, lastLogin:'2026-07-21 06:52', projects:[], phone:'+212 6 33 18 21 40', auth:'Password', location:'Tangier Production & Packaging' },
-      { id:'ADM-006', name:'S. Alaoui', fullName:'Salma Alaoui', username:'s.alaoui', email:'s.alaoui@launchops.example', role:'Production & Packing Coordinator', status:'Active', locked:false, failedAttempts:0, lastLogin:'2026-07-21 07:14', projects:[], phone:'+212 6 71 42 16 83', auth:'Password', location:'Tangier Production & Packaging' },
-      { id:'ADM-007', name:'I. Chafai', fullName:'Imane Chafai', username:'i.chafai', email:'i.chafai@launchops.example', role:'Warehouse Personnel', status:'Inactive', locked:false, failedAttempts:0, lastLogin:'2026-06-28 15:22', projects:[], phone:'+212 6 44 70 18 91', auth:'Password', location:'Main Warehouse' },
-      { id:'ADM-008', name:'K. Benali', fullName:'Karim Benali', username:'k.benali', email:'k.benali@launchops.example', role:'Plant Manager', status:'Active', locked:false, failedAttempts:0, lastLogin:'2026-07-20 17:45', projects:[], phone:'+212 6 18 30 44 62', auth:'Password', location:'Tangier Plant 2' },
-    ];
+// ADMIN_USERS used to be a static mock array here. User accounts are now
+// real, backend-persisted records -- see data/admin-store.js's ADMIN_USERS
+// (fetched from GET /users) for the live equivalent. Kept out of this file
+// entirely rather than left unused, so nothing can accidentally import the
+// stale fixture again.
 
 export const ADMIN_ASSIGNMENTS = [
       { user:'S. Ait Oubou',project:'Peugeot 208',role:'Responsible Manager' },
@@ -456,36 +451,19 @@ export const ADMIN_ASSIGNMENTS = [
       { user:'A. Rahal',project:'BMW X5',role:'Responsible Engineer' },
     ];
 
-export const ADMIN_REFERENCE_LISTS = {
-      customers:{ label:'JIT Customers', fields:'Customer name', entries:[
-        { id:'CUS-001',label:'BMW Group',references:['G05 LCI'],status:'Active',linkedRecords:3,project:'' },{ id:'CUS-002',label:'Renault',references:['BJA Phase 2','DJF'],status:'Active',linkedRecords:3,project:'' },{ id:'CUS-003',label:'Stellantis',references:['P21'],status:'Active',linkedRecords:1,project:'' },
-      ]},
-      contacts:{ label:'Contact Names', fields:'Contact name', entries:[
-        { id:'CON-001',label:'Olivier Martin',status:'Active',linkedRecords:2,project:'' },{ id:'CON-002',label:'Nadia Bennis',status:'Active',linkedRecords:1,project:'' },{ id:'CON-003',label:'Former Customer Contact',status:'Inactive',linkedRecords:4,project:'' },
-      ]},
-      fgpn:{ label:'Finished Goods Part Numbers', fields:'FGPN and project', entries:[
-        { id:'FG-BX5-100',label:'FG-BX5-100',status:'Active',linkedRecords:2,project:'BMW X5' },{ id:'FG-BX5-101',label:'FG-BX5-101',status:'Active',linkedRecords:1,project:'BMW X5' },{ id:'FG-RCV-330',label:'FG-RCV-330',status:'Active',linkedRecords:1,project:'Renault Clio V' },
-      ]},
-      receivers:{ label:'Manufacturing Receivers', fields:'Receiver name', entries:MFG_DELIVERY_RECEIVERS.map((label,index) => ({ id:`RCV-${String(index+1).padStart(3,'0')}`,label,status:'Active',linkedRecords:index < 3 ? index+1 : 0,project:'' })) },
-      methods:{ label:'Delivery Methods', fields:'Method name', entries:[
-        { id:'MET-001',label:'Truck',status:'Active',linkedRecords:4,project:'' },{ id:'MET-002',label:'DHL',status:'Active',linkedRecords:2,project:'' },{ id:'MET-003',label:'Van',status:'Active',linkedRecords:1,project:'' },
-      ]},
-      materialTypes:{ label:'Material Types', fields:'Material type', entries:[
-        { id:'MT-001',label:'Wire',status:'Active',linkedRecords:8,project:'' },{ id:'MT-002',label:'Connector',status:'Active',linkedRecords:6,project:'' },{ id:'MT-003',label:'Tape',status:'Active',linkedRecords:3,project:'' },{ id:'MT-004',label:'Tube',status:'Active',linkedRecords:2,project:'' },
-      ]},
-    };
+// ADMIN_REFERENCE_LISTS used to be a static mock object here. Reference
+// entries (JIT Customers, Contacts, FGPNs, Receivers, Delivery Methods,
+// Material Types -- SRS M00-FR-14) are now real, backend-persisted
+// records -- see data/admin-store.js's ADMIN_REFERENCE_LISTS (fetched
+// from GET /reference-entries) for the live equivalent. A fresh database
+// starts with none of these; run backend/scripts/seed_reference_lists.py
+// once to restore the same starter data this mock used to hardcode.
 
 export const ADMIN_ACTIVITY = [];
 
-export const ADMIN_LOGIN_EVENTS = [
-      { time:'2026-07-21 08:31',username:'r.benali',result:'Successful',source:'10.24.8.14',reason:'Authenticated' },
-      { time:'2026-07-21 08:12',username:'y.mansouri',result:'Successful',source:'10.24.22.31',reason:'Authenticated' },
-      { time:'2026-07-21 07:58',username:'m.elidrissi',result:'Failed',source:'10.24.8.90',reason:'Account locked after 5 failed attempts' },
-      { time:'2026-07-21 07:57',username:'m.elidrissi',result:'Failed',source:'10.24.8.90',reason:'Incorrect password · attempt 5 of 5' },
-      { time:'2026-07-21 07:55',username:'m.elidrissi',result:'Failed',source:'10.24.8.90',reason:'Incorrect password · attempt 4 of 5' },
-      { time:'2026-07-21 07:42',username:'s.alaoui',result:'Successful',source:'10.24.24.17',reason:'Authenticated' },
-      { time:'2026-07-20 16:05',username:'i.chafai',result:'Failed',source:'10.24.18.42',reason:'Account inactive' },
-    ];
+// Same as ADMIN_USERS above: login events are now real, backend-logged
+// records (SRS M00-FR-13) -- see data/admin-store.js's ADMIN_LOGIN_EVENTS
+// (fetched from GET /users/login-events).
 
 export function buildSearchIndex() {
       const idx = [];

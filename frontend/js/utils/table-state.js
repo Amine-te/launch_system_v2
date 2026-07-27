@@ -80,6 +80,6 @@ export let adminSelectedRole = 'System Administrator';
 
 export let adminUserFilters = { search:'', role:'', status:'', security:'' };
 
-export let adminAssignmentDraft = { project:'BMW X5', userId:'ADM-004' };
+export let adminAssignmentDraft = { project:'BMW X5', userId:'' };
 
 export let adminLoginFilters = { search:'', result:'' };

@@ -14,6 +14,25 @@
 
 import { PO_EXTRACTION_SAMPLE } from './data/mock-data.js';
 
+// The whole `state` object below is rebuilt from scratch on every browser
+// refresh (it's just a JS module getting re-evaluated) -- currentPage
+// always started back at 'dashboard' and currentRole always started back
+// at 'engineer' no matter what was on screen before the refresh, which is
+// exactly the "refresh always dumps me on the Launch Engineer dashboard"
+// bug. main.js restores the real values (role from the confirmed session,
+// page from here) once the session check resolves; these are just the
+// pre-restore defaults, and only matter for the brief instant before that
+// happens (or if nothing was ever saved, e.g. a first visit).
+const _lastPageKey = 'launchops.lastPage';
+
+export function persistCurrentPage(page) {
+  try { sessionStorage.setItem(_lastPageKey, page); } catch (error) { /* storage unavailable -- refresh just won't restore the page */ }
+}
+
+export function readPersistedPage() {
+  try { return sessionStorage.getItem(_lastPageKey); } catch (error) { return null; }
+}
+
 export const state = {
   currentRole: 'engineer',
   currentPage: 'dashboard',
@@ -94,7 +113,7 @@ export const state = {
   auditFilters: { search: '', module: '', project: '', po: '', pn: '', user: '', evidence: '', date: '' },
   auditPage: 1,
   openAuditId: null,
-  adminSelectedUserId: 'ADM-001',
+  adminSelectedUserId: '',
   adminReferenceModule: 'customers',
   adminUserForm: { open:false, mode:'create', editingId:'', draft:{}, errors:{} },
   adminReferenceForm: { open:false, mode:'create', editingId:'', draft:{ label:'', project:'', references:'', status:'Active' } },

@@ -8,12 +8,13 @@
 import { renderBreadcrumb } from './components/breadcrumb.js';
 import { getCurrentAccount, logout, onAccountChange, init as initAccountSwitcher } from './components/account-switcher.js';
 import { ROLE_PERSONA } from './components/nav-config.js';
-import { applyAccountChange, initSidebarState, renderNav } from './components/nav-render.js';
+import { applyAccountChange, initSidebarState, navigate, renderNav } from './components/nav-render.js';
 import { renderQuickLogin } from './components/quick-login.js';
+import { loadReferenceEntries } from './data/admin-store.js';
 import { renderTopbarWidgets } from './components/topbar.js';
 import { SESSION_EXPIRED_EVENT } from './api/auth.js';
 import { renderPage } from './pages/router.js';
-import { state } from './state.js';
+import { readPersistedPage, state } from './state.js';
 
 // Side-effect import: attaches every function used by inline onclick/onchange
 // HTML attributes to window (see file header for why this is necessary).
@@ -90,8 +91,31 @@ onAccountChange(account => {
 initAccountSwitcher('authContainer').then(account => {
       renderSidebarAccount(account);
       if (account) {
+        // A browser refresh re-evaluates state.js from scratch, so the
+        // `state` singleton above is back to its hardcoded defaults
+        // (currentRole 'engineer', currentPage 'dashboard') no matter who
+        // was actually logged in or what page they were on -- that's the
+        // "refresh always dumps me on the Launch Engineer dashboard" bug.
+        // Apply the real role from the now-confirmed session, then hand
+        // off to navigate() (with replace:true, so this doesn't push a
+        // spurious browser-history entry) to restore the page that was
+        // open before the refresh -- going through navigate() rather than
+        // setting state.currentPage directly means the same role-based
+        // guards that protect every other navigation (e.g. an admin
+        // account only ever landing on an admin page) apply here too.
+        state.currentRole = account.role;
         showApp();
-        renderAll();
+        navigate(readPersistedPage() || 'dashboard', { replace: true });
+        // Reference lists (JIT Customers, Delivery Methods, etc.) are read
+        // by ordinary business pages (Projects, Customer Delivery), not
+        // just the Admin section -- unlike ADMIN_USERS, whose only
+        // readers are admin-only pages that can safely lazy-load it on
+        // first visit. A non-admin user who never opens Admin > Reference
+        // Lists still needs this data, so fetch it here instead of
+        // waiting for ensureAdminReferenceListsLoaded() to be triggered
+        // by a page they may never visit. Fire-and-forget; re-render once
+        // it lands in case the current page already rendered without it.
+        loadReferenceEntries().then(renderAll);
       } else {
         showAuthScreen();
       }

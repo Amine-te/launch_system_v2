@@ -3,7 +3,9 @@
    ========================================================================== */
 
 import { assignedProjectNames, posForProject, projectBomReadiness, visibleProjects } from '../components/shared-tables.js';
-import { ADMIN_LOGIN_EVENTS, ADMIN_REFERENCE_LISTS, ADMIN_USERS, AUDIT_LOGS, CUST_DELIVERIES, INVOICES, MATERIALS, MFG_DELIVERIES, PNS, POS, PO_STATUS_FLOW, PROJECTS, REVENUE_ROWS, SIMULATION_HISTORY, STOCK_ALERTS } from '../data/mock-data.js';
+import { adminLoadingHtml, ensureAdminLoginEventsLoaded, ensureAdminReferenceListsLoaded, ensureAdminUsersLoaded } from './admin.js';
+import { ADMIN_LOGIN_EVENTS, ADMIN_REFERENCE_LISTS, ADMIN_USERS } from '../data/admin-store.js';
+import { AUDIT_LOGS, CUST_DELIVERIES, INVOICES, MATERIALS, MFG_DELIVERIES, PNS, POS, PO_STATUS_FLOW, PROJECTS, REVENUE_ROWS, SIMULATION_HISTORY, STOCK_ALERTS } from '../data/mock-data.js';
 import { custEffectiveStatus } from './customer-delivery.js';
 import { mfgDeliveryPnQuantities, mfgTable } from './manufacturing-delivery.js';
 import { getThreshold } from './materials-stock.js';
@@ -542,6 +544,12 @@ export function dashProductionPackingCoordinator() {
     }
 
 export function dashAdmin() {
+      const usersStatus=ensureAdminUsersLoaded();
+      if (!usersStatus.loaded) return adminLoadingHtml('Administration',usersStatus);
+      const eventsStatus=ensureAdminLoginEventsLoaded();
+      if (!eventsStatus.loaded) return adminLoadingHtml('Administration',eventsStatus);
+      const referenceStatus=ensureAdminReferenceListsLoaded();
+      if (!referenceStatus.loaded) return adminLoadingHtml('Administration',referenceStatus);
       const active = ADMIN_USERS.filter(user => user.status === 'Active').length;
       const inactive = ADMIN_USERS.filter(user => user.status === 'Inactive').length;
       const locked = ADMIN_USERS.filter(user => user.locked).length;
