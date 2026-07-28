@@ -10,8 +10,14 @@ docker compose up -d
 **2. Start the backend**
 ```bash
 cd backend
-.venv/bin/python -m alembic upgrade head      # apply migrations (first time / after pulling new ones)
-.venv/bin/python -m scripts.seed_demo_users   # seed the 7 demo accounts (see below)
+python3 -m venv .venv               # first time only
+.venv/bin/pip install -r requirements.txt   # first time only
+
+.venv/bin/python -m alembic upgrade head       # apply migrations
+.venv/bin/python -m scripts.seed_demo_users    # seed the 7 demo accounts
+.venv/bin/python -m scripts.seed_reference_lists   # seed customers/methods/etc dropdowns
+.venv/bin/python -m scripts.seed_projects      # seed the 4 demo projects
+
 .venv/bin/uvicorn app.main:app --reload
 ```
 Runs the API at `http://localhost:8000`, which must match `API_BASE_URL` in
