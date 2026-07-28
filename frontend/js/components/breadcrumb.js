@@ -4,7 +4,8 @@
 
 import { navigationStateLabel } from './nav-render.js';
 import { projectForContext } from './shared-tables.js';
-import { CUST_DELIVERIES, MFG_DELIVERIES, PROJECTS } from '../data/mock-data.js';
+import { CUST_DELIVERIES, MFG_DELIVERIES } from '../data/mock-data.js';
+import { PROJECTS } from '../data/projects-store.js';
 import { state } from '../state.js';
 import { icon } from '../utils/icons.js';
 import { exportHtmlValue } from '../utils/table-helpers.js';

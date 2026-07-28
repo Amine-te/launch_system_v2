@@ -4,7 +4,8 @@
 
 import { treeOpen } from '../components/nav-config.js';
 import { bomImportedDashboard, bomMaterialTable, canWriteProject, pnsForPo, poBomReadiness, posForProject, projectBomReadiness, projectForContext, visibleProjects } from '../components/shared-tables.js';
-import { MATERIALS, PNS, POS, PROJECTS } from '../data/mock-data.js';
+import { MATERIALS, PNS, POS } from '../data/mock-data.js';
+import { PROJECTS } from '../data/projects-store.js';
 import { projectExplorer, workspaceTabs } from './projects.js';
 import { auditContextEvents, bomVersionRecords, bomVersionRows, bomVersionsWorkspace, poVersionRecords, poVersionRows, traceabilityWorkspace } from './purchase-orders.js';
 import { renderPage } from './router.js';

@@ -6,7 +6,8 @@ import { PAGE_META } from './breadcrumb.js';
 import { openModal } from './modal.js';
 import { NAV, NAVIGATION_HISTORY_LIMIT, ROLE_PERSONA, explorerOpen } from './nav-config.js';
 import { assignedProjectNames, beginBomImport, canWriteProject, pnsForPo, posForProject, visibleProjects, writableProjects } from './shared-tables.js';
-import { AUDIT_LOGS, BOM_IMPORT_RECORDS, CUST_DELIVERIES, MFG_DELIVERIES, PNS, POS, PO_BOM_FILES, PRODUCTION_ORDERS, PROJECTS } from '../data/mock-data.js';
+import { AUDIT_LOGS, BOM_IMPORT_RECORDS, CUST_DELIVERIES, MFG_DELIVERIES, PNS, POS, PO_BOM_FILES, PRODUCTION_ORDERS } from '../data/mock-data.js';
+import { deleteProject as storeDeleteProject, loadProjects, PROJECTS } from '../data/projects-store.js';
 import { renderAll } from '../main.js';
 import { openProjectForm } from '../pages/projects.js';
 import { productionActor } from '../pages/purchase-orders.js';
@@ -324,12 +325,34 @@ export function deletePoRecord(poId) {
 
 export function confirmDeleteProject(projectId) {
       const project = PROJECTS.find(p => p.id === projectId || p.name === projectId);
-      const linked = project ? POS.filter(po => po.project === project.name) : [];
+      if (!project) return openModal('Project not found', `${projectId} is no longer available.`);
+      if (!project.canWrite) {
+        openModal('Project deletion not permitted', 'You can only delete projects assigned to you.');
+        return;
+      }
+      // POS is still the mock purchase-orders array (no real purchase_orders
+      // table yet -- SRS M03/Step 3) -- this client-side check is a
+      // best-effort UX preview of M01-AC-05; the server enforces the real
+      // rule independently once purchase orders are real (see
+      // routes/projects.py's _project_has_purchase_orders docstring).
+      const linked = POS.filter(po => po.project === project.name);
       if (linked.length) {
         openModal('Project deletion blocked', `${project.name} contains ${linked.length} purchase order${linked.length === 1 ? '' : 's'}. M01-AC-05 requires every linked PO to be archived or reassigned before the project can be deleted.`);
         return;
       }
-      openModal('Delete ' + (project?.name || projectId) + '?', 'This empty project can be deleted after confirmation. The action will be written to the audit history.');
+      openModal(`Delete ${project.name}?`, 'This project has no purchase orders and can be deleted. The deletion is written to the audit history and cannot be undone.', () => deleteProjectRecord(project), 'Delete');
+    }
+
+export function deleteProjectRecord(project) {
+      storeDeleteProject(project.backendId)
+        .then(() => loadProjects())
+        .then(() => {
+          if (state.openContext.project === project.name) {
+            state.openContext.project = PROJECTS[0]?.name || '';
+          }
+          navigate('project-list', { replace: true });
+        })
+        .catch(error => openModal('Could not delete project', error.message || 'Something went wrong while deleting this project.'));
     }
 
 export function stop(e) { e.stopPropagation(); }

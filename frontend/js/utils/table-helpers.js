@@ -4,7 +4,8 @@
 
 import { openModal } from '../components/modal.js';
 import { pnsForPo } from '../components/shared-tables.js';
-import { POS, PO_EXTRACTION_RECORDS, PO_SOURCE_FILES, PROJECTS } from '../data/mock-data.js';
+import { POS, PO_EXTRACTION_RECORDS, PO_SOURCE_FILES } from '../data/mock-data.js';
+import { PROJECTS } from '../data/projects-store.js';
 import { poVersionRecords } from '../pages/purchase-orders.js';
 import { renderPage } from '../pages/router.js';
 import { state } from '../state.js';

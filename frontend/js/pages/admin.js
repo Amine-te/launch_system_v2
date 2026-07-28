@@ -12,7 +12,12 @@ import {
   loadAdminLoginEvents, loadAdminUsers, loadReferenceEntries,
   reactivateUser, unlockUser, updateReferenceEntry, updateUserIdentity, updateUserRole,
 } from '../data/admin-store.js';
-import { ADMIN_ACTIVITY, ADMIN_ASSIGNMENTS, AUDIT_LOGS, PROJECTS } from '../data/mock-data.js';
+import { ADMIN_ACTIVITY, AUDIT_LOGS } from '../data/mock-data.js';
+import {
+  PROJECTS, PROJECT_ASSIGNMENTS, createProjectAssignment as storeCreateProjectAssignment,
+  deleteProjectAssignment as storeDeleteProjectAssignment, loadProjectAssignments,
+  projectAssignmentsStatus,
+} from '../data/projects-store.js';
 import { poEsc } from './po-intake.js';
 import { renderPage } from './router.js';
 import { state } from '../state.js';
@@ -76,6 +81,22 @@ export function ensureAdminLoginEventsLoaded() {
       return adminLoginEventsStatus;
     }
 
+export function ensureProjectAssignmentsLoaded() {
+      if (!projectAssignmentsStatus.loaded && !projectAssignmentsStatus.loading) loadProjectAssignments().then(renderPage);
+      return projectAssignmentsStatus;
+    }
+
+// Assigned-project names for a given user, read live from PROJECT_ASSIGNMENTS
+// (data/projects-store.js -- real, backend-persisted, GET /project-assignments)
+// instead of a locally-cached `.projects` field on the user object. Replaces
+// the old ADMIN_ASSIGNMENTS-backed bookkeeping that used to need manual
+// patching on every rename/role-change (see adminSaveUser's history for why
+// that bookkeeping existed) -- this just re-derives from the live list every
+// render, so it can never drift out of sync with what the backend has.
+export function adminAssignedProjectNames(userId) {
+      return PROJECT_ASSIGNMENTS.filter(assignment => String(assignment.userId) === String(userId)).map(assignment => assignment.projectName);
+    }
+
 export function adminLoadingHtml(title,status) {
       if (status.loading || (!status.loaded && !status.error)) return `<div class="admin-shell"><div class="admin-head"><h2>${title}</h2></div><div class="empty-state" style="padding:40px;"><div class="e-title">Loading…</div></div></div>`;
       return `<div class="admin-shell"><div class="admin-head"><h2>${title}</h2></div><div class="empty-state" style="padding:40px;"><div class="e-title">Could not load this data</div><p>${poEsc(status.error)}</p><button class="btn" onclick="renderPage()">Retry</button></div></div>`;
@@ -105,19 +126,10 @@ export async function adminSaveUser() {
       try {
         if (state.adminUserForm.mode === 'edit') {
           const id=state.adminUserForm.editingId, existing=adminUserById(id);
-          const oldRole=existing?.role, oldName=existing?.name;
+          const oldRole=existing?.role;
           await updateUserIdentity(id,{ full_name:draft.fullName.trim(), email:draft.email.trim() });
           if (existing && draft.role !== oldRole) await updateUserRole(id,draft.role);
           await loadAdminUsers();
-          const updated=adminUserById(id);
-          if (updated) {
-            if (!adminIsLaunchRole(updated.role)) {
-              for (let index=ADMIN_ASSIGNMENTS.length-1; index>=0; index--) if (ADMIN_ASSIGNMENTS[index].user === oldName || ADMIN_ASSIGNMENTS[index].user === updated.name) ADMIN_ASSIGNMENTS.splice(index,1);
-              updated.projects=[];
-            } else if (oldName && oldName !== updated.name) {
-              ADMIN_ASSIGNMENTS.forEach(assignment => { if (assignment.user === oldName) { assignment.user=updated.name; assignment.role=updated.role === 'Launch Manager' ? 'Responsible Manager' : 'Responsible Engineer'; } });
-            }
-          }
           adminAudit('User account updated',`${draft.fullName.trim()} updated${existing && draft.role !== oldRole ? `; role ${oldRole} to ${draft.role}` : ''}.`);
         } else {
           await createUser({ email:draft.email.trim(), password:draft.password, full_name:draft.fullName.trim(), role:LABEL_TO_BACKEND_ROLE[draft.role] });
@@ -180,12 +192,14 @@ export function adminUserFormHtml() {
 export function pageAdminUsers() {
       const status=ensureAdminUsersLoaded();
       if (!status.loaded) return adminLoadingHtml('User Accounts',status);
+      const assignmentsStatus=ensureProjectAssignmentsLoaded();
+      if (!assignmentsStatus.loaded) return adminLoadingHtml('User Accounts',assignmentsStatus);
       const users=adminFilteredUsers(), active=ADMIN_USERS.filter(user => user.status === 'Active').length, inactive=ADMIN_USERS.length-active, locked=ADMIN_USERS.filter(user => user.locked).length;
       return `<div class="admin-shell"><div class="admin-head"><h2>User Accounts</h2><div class="admin-head-actions"><button class="btn primary" onclick="adminOpenUserForm('create')">${icon('plus','')} Create User</button></div></div>
       ${adminUserFormHtml()}
       <div class="admin-kpis"><div class="admin-kpi"><div class="admin-kpi-label">Total Accounts</div><div class="admin-kpi-value">${ADMIN_USERS.length}</div></div><div class="admin-kpi"><div class="admin-kpi-label">Active</div><div class="admin-kpi-value">${active}</div></div><div class="admin-kpi"><div class="admin-kpi-label">Inactive</div><div class="admin-kpi-value">${inactive}</div></div><div class="admin-kpi"><div class="admin-kpi-label">Locked</div><div class="admin-kpi-value" style="color:${locked ? 'var(--danger)' : '#000'};">${locked}</div></div></div>
       <div class="card admin-card" style="padding:0;overflow:hidden;"><div class="admin-toolbar"><div class="admin-search">${icon('search','')}<input value="${poEsc(adminUserFilters.search)}" oninput="adminSetUserFilter('search',this.value)" placeholder="Search name or email"></div><select class="admin-filter" onchange="adminSetUserFilter('role',this.value)"><option value="">All roles</option>${ADMIN_ROLE_OPTIONS.map(role => `<option value="${role}" ${adminUserFilters.role === role ? 'selected' : ''}>${role}</option>`).join('')}</select><select class="admin-filter" onchange="adminSetUserFilter('status',this.value)"><option value="">All statuses</option><option ${adminUserFilters.status === 'Active' ? 'selected' : ''}>Active</option><option ${adminUserFilters.status === 'Inactive' ? 'selected' : ''}>Inactive</option></select><select class="admin-filter" onchange="adminSetUserFilter('security',this.value)"><option value="">All security states</option><option ${adminUserFilters.security === 'Unlocked' ? 'selected' : ''}>Unlocked</option><option ${adminUserFilters.security === 'Locked' ? 'selected' : ''}>Locked</option></select><span class="admin-sub">${users.length} account${users.length === 1 ? '' : 's'}</span></div>
-      <div class="table-scroll"><table><thead><tr><th>User</th><th>Role</th><th>Account</th><th>Security</th><th>Project Access</th><th>Last Login</th><th style="text-align:right;">Actions</th></tr></thead><tbody>${users.length ? users.map(user => `<tr><td><div class="admin-user-cell"><span class="admin-avatar">${adminInitials(user.fullName)}</span><div><strong>${user.fullName}</strong><span>${user.email}</span></div></div></td><td>${user.role}</td><td>${statusBadge(user.status,user.status === 'Active' ? 'success' : 'neutral')}</td><td><div class="admin-security-state"><span class="admin-security-dot ${user.locked ? 'locked' : ''}"></span>${user.locked ? `Locked · ${user.failedAttempts}/5 attempts` : 'Unlocked'}</div></td><td><div class="admin-project-tags">${user.projects.length ? user.projects.map(project => `<span class="admin-project-tag">${project}</span>`).join('') : '<span class="admin-sub">No project assignment</span>'}</div></td><td class="mono">${user.lastLogin}</td><td><div class="admin-row-actions"><button class="btn sm" onclick="openAdminUser('${user.id}')">View</button><button class="btn sm" onclick="adminOpenUserForm('edit','${user.id}')">Edit</button>${user.locked ? `<button class="btn sm" onclick="adminUnlockUser('${user.id}')">Unlock</button>` : ''}<button class="btn sm" onclick="adminToggleUserStatus('${user.id}')">${user.status === 'Active' ? 'Deactivate' : 'Reactivate'}</button></div></td></tr>`).join('') : `<tr><td colspan="7"><div class="empty-state" style="padding:28px;"><div class="e-title">No matching accounts</div></div></td></tr>`}</tbody></table></div></div></div>`;
+      <div class="table-scroll"><table><thead><tr><th>User</th><th>Role</th><th>Account</th><th>Security</th><th>Project Access</th><th>Last Login</th><th style="text-align:right;">Actions</th></tr></thead><tbody>${users.length ? users.map(user => { const assignedProjects=adminAssignedProjectNames(user.id); return `<tr><td><div class="admin-user-cell"><span class="admin-avatar">${adminInitials(user.fullName)}</span><div><strong>${user.fullName}</strong><span>${user.email}</span></div></div></td><td>${user.role}</td><td>${statusBadge(user.status,user.status === 'Active' ? 'success' : 'neutral')}</td><td><div class="admin-security-state"><span class="admin-security-dot ${user.locked ? 'locked' : ''}"></span>${user.locked ? `Locked · ${user.failedAttempts}/5 attempts` : 'Unlocked'}</div></td><td><div class="admin-project-tags">${assignedProjects.length ? assignedProjects.map(project => `<span class="admin-project-tag">${project}</span>`).join('') : '<span class="admin-sub">No project assignment</span>'}</div></td><td class="mono">${user.lastLogin}</td><td><div class="admin-row-actions"><button class="btn sm" onclick="openAdminUser('${user.id}')">View</button><button class="btn sm" onclick="adminOpenUserForm('edit','${user.id}')">Edit</button>${user.locked ? `<button class="btn sm" onclick="adminUnlockUser('${user.id}')">Unlock</button>` : ''}<button class="btn sm" onclick="adminToggleUserStatus('${user.id}')">${user.status === 'Active' ? 'Deactivate' : 'Reactivate'}</button></div></td></tr>`; }).join('') : `<tr><td colspan="7"><div class="empty-state" style="padding:28px;"><div class="e-title">No matching accounts</div></div></td></tr>`}</tbody></table></div></div></div>`;
     }
 
 export function pageAdminUserDetails() {
@@ -193,13 +207,16 @@ export function pageAdminUserDetails() {
       if (!usersStatus.loaded) return adminLoadingHtml('Account Details',usersStatus);
       const eventsStatus=ensureAdminLoginEventsLoaded();
       if (!eventsStatus.loaded) return adminLoadingHtml('Account Details',eventsStatus);
+      const assignmentsStatus=ensureProjectAssignmentsLoaded();
+      if (!assignmentsStatus.loaded) return adminLoadingHtml('Account Details',assignmentsStatus);
       const user=adminUserById(state.adminSelectedUserId) || ADMIN_USERS[0];
       if (!user) return `<div class="admin-shell"><div class="admin-head"><h2>Account Details</h2></div><div class="empty-state" style="padding:40px;"><div class="e-title">No user accounts yet</div><button class="btn sm" onclick="navigate('admin-users')">Back to Users</button></div></div>`;
       const definition=ADMIN_ROLE_DEFINITIONS[user.role] || {scope:'Role-scoped access',permissions:[]};
       const loginEvents=ADMIN_LOGIN_EVENTS.filter(event => event.username === user.email).slice(0,8);
+      const assignedProjects=adminAssignedProjectNames(user.id);
       return `<div class="admin-shell"><div class="admin-head"><div><button class="btn sm" onclick="navigate('admin-users')" style="margin-bottom:10px;">${icon('chevLeft','')} Users</button><h2>${user.fullName}</h2><p class="mono">${user.email} · ${user.id}</p></div><div class="admin-head-actions">${user.locked ? `<button class="btn" onclick="adminUnlockUser('${user.id}')">${icon('check','')} Unlock</button>` : ''}<button class="btn" onclick="adminToggleUserStatus('${user.id}')">${user.status === 'Active' ? 'Deactivate' : 'Reactivate'}</button><button class="btn primary" onclick="adminOpenUserForm('edit','${user.id}')">${icon('edit','')} Edit Account</button></div></div>
       <div class="admin-user-overview"><div class="card admin-card"><div class="admin-card-head"><h3>Account Information</h3><div style="display:flex;gap:7px;">${statusBadge(user.status,user.status === 'Active' ? 'success' : 'neutral')}${user.locked ? statusBadge('Locked','danger') : statusBadge('Unlocked','success')}</div></div><div class="admin-detail-grid"><div class="admin-detail-item"><span>Full Name</span><strong>${user.fullName}</strong></div><div class="admin-detail-item"><span>Email</span><strong class="mono">${user.email}</strong></div><div class="admin-detail-item"><span>Authentication</span><strong>Username and password</strong></div><div class="admin-detail-item"><span>Failed Attempts</span><strong>${user.failedAttempts}/5</strong></div><div class="admin-detail-item"><span>Last Login</span><strong class="mono">${user.lastLogin}</strong></div></div></div>
-      <div class="card admin-card"><div class="admin-card-head"><h3>Role & Access</h3>${statusBadge(user.role,'info')}</div><div class="admin-access-list"><div class="admin-access-row"><span>Access scope</span><strong>${definition.scope}</strong></div>${definition.permissions.map(permission => `<div class="admin-access-row"><span>${permission}</span>${statusBadge('Allowed','success')}</div>`).join('')}</div>${adminIsLaunchRole(user.role) ? `<div class="admin-card-head" style="margin:20px 0 10px;"><h3>Assigned Projects</h3><button class="btn sm" onclick="navigate('admin-project-assignments')">Manage</button></div><div class="admin-project-tags">${user.projects.length ? user.projects.map(project => `<span class="admin-project-tag">${project}</span>`).join('') : '<span class="admin-sub">No project access assigned</span>'}</div>` : ''}</div></div>
+      <div class="card admin-card"><div class="admin-card-head"><h3>Role & Access</h3>${statusBadge(user.role,'info')}</div><div class="admin-access-list"><div class="admin-access-row"><span>Access scope</span><strong>${definition.scope}</strong></div>${definition.permissions.map(permission => `<div class="admin-access-row"><span>${permission}</span>${statusBadge('Allowed','success')}</div>`).join('')}</div>${adminIsLaunchRole(user.role) ? `<div class="admin-card-head" style="margin:20px 0 10px;"><h3>Assigned Projects</h3><button class="btn sm" onclick="navigate('admin-project-assignments')">Manage</button></div><div class="admin-project-tags">${assignedProjects.length ? assignedProjects.map(project => `<span class="admin-project-tag">${project}</span>`).join('') : '<span class="admin-sub">No project access assigned</span>'}</div>` : ''}</div></div>
       <div class="card admin-card"><div class="admin-card-head"><h3>Login History</h3><button class="btn sm" onclick="navigate('admin-system-activity')">Full Login Audit</button></div><div class="table-scroll"><table><thead><tr><th>Timestamp</th><th>Result</th><th>Reason</th><th>Source</th></tr></thead><tbody>${loginEvents.length ? loginEvents.map(event => `<tr><td class="mono">${event.time}</td><td>${statusBadge(event.result,event.result === 'Successful' ? 'success' : 'danger')}</td><td>${event.reason}</td><td class="mono">${event.source}</td></tr>`).join('') : `<tr><td colspan="4"><span class="admin-sub">No login events recorded.</span></td></tr>`}</tbody></table></div></div></div>`;
     }
 
@@ -210,39 +227,52 @@ export function pageAdminRoles() {
     }
 
 // ---- project assignments -----------------------------------------------
-// Still local-only (mutates the ADMIN_ASSIGNMENTS mock from
-// data/mock-data.js): the backend has no Project model or
-// project-assignment table yet (that's SRS M01 / M00-FR-07..09), so
-// there's no real endpoint to wire this to. The user list it reads from
-// (ADMIN_USERS) is real; the assignment records themselves are not
-// persisted server-side and will reset on a full page reload.
+// Real now (SRS M00-FR-07..09 / M01) -- backed by GET/POST/DELETE
+// /project-assignments (see data/projects-store.js's PROJECT_ASSIGNMENTS,
+// createProjectAssignment, deleteProjectAssignment). Previously mutated a
+// local-only ADMIN_ASSIGNMENTS mock that reset on every page reload; every
+// mutation below now awaits the real endpoint and reloads from the server
+// afterwards, same pattern as the rest of this file's async handlers.
 
 export function adminEligibleProjectUsers() { return ADMIN_USERS.filter(user => adminIsLaunchRole(user.role) && user.status === 'Active' && !user.locked); }
 
 export function adminSetAssignmentDraft(key,value) { adminAssignmentDraft[key]=value; renderPage(); }
 
-export function adminAssignProject() {
+export async function adminAssignProject() {
       const user=adminUserById(adminAssignmentDraft.userId), project=PROJECTS.find(item => item.name === adminAssignmentDraft.project);
       if (!user || !project || !adminIsLaunchRole(user.role) || user.status !== 'Active' || user.locked) return openModal('Assignment unavailable','Select an active, unlocked Launch Engineer or Launch Manager.');
-      if (ADMIN_ASSIGNMENTS.some(item => item.user === user.name && item.project === project.name)) return openModal('Already assigned',`${user.fullName} already has access to ${project.name}.`);
-      ADMIN_ASSIGNMENTS.push({ user:user.name,project:project.name,role:user.role === 'Launch Manager' ? 'Responsible Manager' : 'Responsible Engineer' });
-      if (!user.projects.includes(project.name)) user.projects.push(project.name);
-      adminAudit('Project access assigned',`${user.fullName} assigned to ${project.name} as ${user.role}.`); renderPage();
+      const role = user.role === 'Launch Manager' ? 'manager' : 'engineer';
+      try {
+        await storeCreateProjectAssignment(project.backendId, user.id, role);
+      } catch (error) {
+        return openModal('Could not assign access', error?.message || 'Please try again.');
+      }
+      await loadProjectAssignments();
+      adminAudit('Project access assigned',`${user.fullName} assigned to ${project.name} as ${user.role}.`);
+      renderPage();
     }
 
-export function adminUnassignProject(userName,projectName) {
-      const user=ADMIN_USERS.find(item => item.name === userName), index=ADMIN_ASSIGNMENTS.findIndex(item => item.user === userName && item.project === projectName);
-      if (index < 0) return; ADMIN_ASSIGNMENTS.splice(index,1);
-      if (user) user.projects=user.projects.filter(project => project !== projectName);
-      adminAudit('Project access removed',`${user?.fullName || userName} immediately lost access to ${projectName}; historical actions were retained.`); renderPage();
+export async function adminUnassignProject(assignmentId) {
+      const assignment=PROJECT_ASSIGNMENTS.find(item => String(item.id) === String(assignmentId));
+      if (!assignment) return;
+      try {
+        await storeDeleteProjectAssignment(assignment.id);
+      } catch (error) {
+        return openModal('Could not remove access', error?.message || 'Please try again.');
+      }
+      await loadProjectAssignments();
+      adminAudit('Project access removed',`${assignment.userFullName} immediately lost access to ${assignment.projectName}; historical actions were retained.`);
+      renderPage();
     }
 
 export function pageAdminProjectAssignments() {
       const status=ensureAdminUsersLoaded();
       if (!status.loaded) return adminLoadingHtml('Project Assignments',status);
+      const assignmentsStatus=ensureProjectAssignmentsLoaded();
+      if (!assignmentsStatus.loaded) return adminLoadingHtml('Project Assignments',assignmentsStatus);
       const eligible=adminEligibleProjectUsers();
       if (!eligible.some(user => user.id === adminAssignmentDraft.userId)) adminAssignmentDraft.userId=eligible[0]?.id || '';
-      return `<div class="admin-shell"><div class="admin-head"><h2>Project Assignments</h2></div><div class="admin-assignment-layout"><div class="card admin-card admin-assignment-form"><div class="admin-card-head"><h3>Assign Project Access</h3></div><div class="admin-field"><label>Project</label><select onchange="adminSetAssignmentDraft('project',this.value)">${PROJECTS.map(project => `<option value="${project.name}" ${adminAssignmentDraft.project === project.name ? 'selected' : ''}>${project.name}</option>`).join('')}</select></div><div class="admin-field" style="margin-top:16px;"><label>Responsible User</label><select onchange="adminSetAssignmentDraft('userId',this.value)">${eligible.map(user => `<option value="${user.id}" ${adminAssignmentDraft.userId === user.id ? 'selected' : ''}>${user.fullName} · ${user.role}</option>`).join('')}</select></div><button class="btn primary" style="width:100%;justify-content:center;margin-top:18px;" onclick="adminAssignProject()">${icon('plus','')} Assign Access</button></div><div class="admin-project-access">${PROJECTS.map(project => { const assignments=ADMIN_ASSIGNMENTS.filter(item => item.project === project.name && ADMIN_USERS.some(user => user.name === item.user && adminIsLaunchRole(user.role))); return `<div class="admin-project-access-card"><div class="admin-project-access-head"><strong>${project.name}</strong>${statusBadge(`${assignments.length} assigned`,assignments.length ? 'info' : 'warning')}</div><div class="admin-assignee-list">${assignments.length ? assignments.map(assignment => { const user=ADMIN_USERS.find(item => item.name === assignment.user); return `<div class="admin-assignee"><div><strong>${user?.fullName || assignment.user}</strong><span>${user?.role || assignment.role} · ${user?.email || 'unknown'}</span></div><button class="btn sm" onclick="adminUnassignProject('${assignment.user}','${project.name}')">Unassign</button></div>`; }).join('') : '<div class="admin-sub">No assigned user</div>'}</div></div>`; }).join('')}</div></div></div>`;
+      return `<div class="admin-shell"><div class="admin-head"><h2>Project Assignments</h2></div><div class="admin-assignment-layout"><div class="card admin-card admin-assignment-form"><div class="admin-card-head"><h3>Assign Project Access</h3></div><div class="admin-field"><label>Project</label><select onchange="adminSetAssignmentDraft('project',this.value)">${PROJECTS.map(project => `<option value="${project.name}" ${adminAssignmentDraft.project === project.name ? 'selected' : ''}>${project.name}</option>`).join('')}</select></div><div class="admin-field" style="margin-top:16px;"><label>Responsible User</label><select onchange="adminSetAssignmentDraft('userId',this.value)">${eligible.map(user => `<option value="${user.id}" ${adminAssignmentDraft.userId === user.id ? 'selected' : ''}>${user.fullName} · ${user.role}</option>`).join('')}</select></div><button class="btn primary" style="width:100%;justify-content:center;margin-top:18px;" onclick="adminAssignProject()">${icon('plus','')} Assign Access</button></div><div class="admin-project-access">${PROJECTS.map(project => { const assignments=PROJECT_ASSIGNMENTS.filter(item => item.projectBackendId === project.backendId); return `<div class="admin-project-access-card"><div class="admin-project-access-head"><strong>${project.name}</strong>${statusBadge(`${assignments.length} assigned`,assignments.length ? 'info' : 'warning')}</div><div class="admin-assignee-list">${assignments.length ? assignments.map(assignment => `<div class="admin-assignee"><div><strong>${assignment.userFullName}</strong><span>${assignment.roleLabel} · ${assignment.userEmail}</span></div><button class="btn sm" onclick="adminUnassignProject('${assignment.id}')">Unassign</button></div>`).join('') : '<div class="admin-sub">No assigned user</div>'}</div></div>`; }).join('')}</div></div></div>`;
     }
 
 // ---- reference lists (SRS M00-FR-14..16) ---------------------------------

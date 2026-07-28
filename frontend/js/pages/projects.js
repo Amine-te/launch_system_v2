@@ -2,12 +2,18 @@
    projects.js
    ========================================================================== */
 
+import { getCurrentAccount } from '../components/account-switcher.js';
 import { openModal } from '../components/modal.js';
 import { ROLE_PERSONA, explorerOpen } from '../components/nav-config.js';
 import { navigate, navigateBack } from '../components/nav-render.js';
 import { assignedProjectNames, bomCoverageHtml, bomImportCell, bomImportExampleRows, bomImportLevelLabel, bomImportStats, bomReadinessForPns, canWriteProject, ensureBomImport, latestBomImportRecord, pnsForPo, pnsForProject, poBomReadiness, posForProject, projectBomReadiness, projectForContext, uniqueValues, visibleProjects } from '../components/shared-tables.js';
-import { ADMIN_REFERENCE_LISTS, ADMIN_USERS } from '../data/admin-store.js';
-import { ADMIN_ASSIGNMENTS, AUDIT_LOGS, BOM_VERSION_HISTORY, CUST_DELIVERIES, MATERIALS, MFG_DELIVERIES, PNS, POS, PO_STATUS_FLOW, PROJECTS, PROJECT_BOM_META, SEARCH_INDEX } from '../data/mock-data.js';
+import { ADMIN_REFERENCE_LISTS } from '../data/admin-store.js';
+import { BOM_VERSION_HISTORY, CUST_DELIVERIES, MATERIALS, MFG_DELIVERIES, PNS, POS, PO_STATUS_FLOW, PROJECT_BOM_META } from '../data/mock-data.js';
+import {
+  ASSIGNABLE_ENGINEERS, assignableEngineersStatus, loadAssignableEngineers, loadProjects,
+  PROJECTS, createProject as storeCreateProject, deleteProject as storeDeleteProject,
+  projectStatusType, updateProject as storeUpdateProject,
+} from '../data/projects-store.js';
 import { custEffectiveStatus, custTable } from './customer-delivery.js';
 import { mfgEligibleOrders, mfgTable } from './manufacturing-delivery.js';
 import { getThreshold, materialStockState, materialTransitQuantity } from './materials-stock.js';
@@ -59,19 +65,6 @@ export function projectExplorer(highlightType, highlightId) {
   </div>`;
     }
 
-export function projectActorShortName() {
-      return state.currentRole === 'engineer' ? 'A. Rahal' : state.currentRole === 'manager' ? 'S. Ait Oubou' : ROLE_PERSONA[state.currentRole]?.name || '';
-    }
-
-export function nextProjectId() {
-      const highest = Math.max(0, ...PROJECTS.map(project => Number(String(project.id).replace(/\D/g, '')) || 0));
-      return `PRJ-${String(highest + 1).padStart(3, '0')}`;
-    }
-
-export function projectStatusType(status) {
-      return status === 'On Track' ? 'success' : status === 'At Risk' ? 'warning' : status === 'Blocked' ? 'danger' : 'neutral';
-    }
-
 export function projectHtmlValue(value) {
       return String(value ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
@@ -86,6 +79,15 @@ export function setProjectFormCustomer(customer) {
       state.projectForm.draft.customerRef = projectCustomerReference(customer);
     }
 
+// Render functions can't `await` (renderPage() needs HTML back
+// synchronously) -- same pattern as ensureAdminUsersLoaded() in
+// pages/admin.js: kick off the fetch once, return the current status,
+// and let the caller show a loading/error state until it flips true.
+export function ensureAssignableEngineersLoaded() {
+      if (!assignableEngineersStatus.loaded && !assignableEngineersStatus.loading) loadAssignableEngineers().then(renderPage);
+      return assignableEngineersStatus;
+    }
+
 export function openProjectForm(mode, projectId) {
       const isEdit = mode === 'edit';
       const project = isEdit ? PROJECTS.find(item => item.id === projectId || item.name === projectId) : null;
@@ -93,32 +95,44 @@ export function openProjectForm(mode, projectId) {
         openModal('Project creation not permitted', 'Only Launch Engineers and Launch Managers can create projects.');
         return;
       }
-      if (isEdit && (!project || !canWriteProject(project))) {
+      if (isEdit && (!project || !project.canWrite)) {
         openModal('Project editing not permitted', 'You can edit only projects assigned to you.');
         return;
       }
-      const defaultEngineer = state.currentRole === 'engineer' ? 'A. Rahal' : 'A. Haddad';
+      // Only a Launch Manager actually picks/changes this field on the
+      // form (engineerLocked below); a Launch Engineer creating their own
+      // project always ends up as their own assigned owner, resolved
+      // server-side from their session -- not sent from the client at
+      // all when the field is locked to self (see saveProjectForm).
+      if (state.currentRole === 'manager') ensureAssignableEngineersLoaded();
       state.projectForm = {
         mode: isEdit ? 'edit' : 'create',
         projectId: project?.id || '',
+        saving: false,
         errors: {},
         draft: project ? {
           id: project.id,
           name: project.name,
           customer: project.customer,
           customerRef: project.customerRef || projectCustomerReference(project.customer),
-          engineer: project.engineer || defaultEngineer,
+          ownerUserId: project.ownerUserId,
+          engineer: project.engineer,
           site: project.site || '',
           status: project.status || 'Draft',
           startDate: project.startDate || '',
           targetDate: project.targetDate || '',
           description: project.description || '',
         } : {
-          id: nextProjectId(),
+          id: '',
           name: '',
           customer: '',
           customerRef: '',
-          engineer: defaultEngineer,
+          ownerUserId: '',
+          // Display-only when locked (state.currentRole !== 'manager') --
+          // the real owner_user_id sent to the API is the caller's own
+          // session id (see saveProjectForm), this is just what shows in
+          // the disabled select.
+          engineer: state.currentRole === 'engineer' ? (ROLE_PERSONA.engineer?.name || '') : '',
           site: '',
           status: 'Draft',
           startDate: '',
@@ -136,9 +150,13 @@ export function cancelProjectForm() {
 export function validateProjectForm() {
       const draft = state.projectForm.draft;
       const errors = {};
-      ['name', 'customer', 'engineer'].forEach(key => {
+      ['name', 'customer'].forEach(key => {
         if (!String(draft[key] || '').trim()) errors[key] = 'This field is required.';
       });
+      // A Launch Manager picks the engineer explicitly; a Launch Engineer
+      // is always their own owner, so there's nothing to validate for
+      // them on this field at all.
+      if (state.currentRole === 'manager' && !draft.ownerUserId) errors.engineer = 'Select a Launch Engineer.';
       const duplicate = PROJECTS.find(project => project.id !== state.projectForm.projectId && project.name.trim().toLowerCase() === String(draft.name || '').trim().toLowerCase());
       if (duplicate) errors.name = 'A project with this name already exists.';
       state.projectForm.errors = errors;
@@ -155,79 +173,51 @@ export function saveProjectForm() {
       const draft = Object.fromEntries(Object.entries(state.projectForm.draft).map(([key, value]) => [key, typeof value === 'string' ? value.trim() : value]));
       const isEdit = state.projectForm.mode === 'edit';
       const existing = isEdit ? PROJECTS.find(project => project.id === state.projectForm.projectId) : null;
-      const previousProject = existing ? { ...existing } : null;
-      const linkedPos = existing ? posForProject(existing.name) : [];
-      if (isEdit && (!existing || !canWriteProject(existing))) {
+      if (isEdit && (!existing || !existing.canWrite)) {
         openModal('Project editing not permitted', 'The project could not be saved because it is outside your assignment.');
         return;
       }
 
-      let savedProject;
-      let oldName = '';
-      if (existing) {
-        oldName = existing.name;
-        const identityLocked = linkedPos.length > 0;
-        Object.assign(existing, {
-          name: identityLocked ? existing.name : draft.name,
-          customer: identityLocked ? existing.customer : draft.customer,
-          customerRef: draft.customerRef,
-          engineer: state.currentRole === 'manager' ? draft.engineer : existing.engineer,
-          site: draft.site,
-          status: draft.status,
-          statusType: projectStatusType(draft.status),
-          startDate: draft.startDate,
-          targetDate: draft.targetDate,
-          description: draft.description,
-        });
-        if (oldName !== existing.name) {
-          ADMIN_ASSIGNMENTS.forEach(assignment => { if (assignment.project === oldName) assignment.project = existing.name; });
-          ADMIN_USERS.forEach(user => { user.projects = user.projects.map(name => name === oldName ? existing.name : name); });
-          const searchRecord = SEARCH_INDEX.find(item => item.type === 'Project' && item.label === oldName);
-          if (searchRecord) { searchRecord.label = existing.name; searchRecord.sub = existing.customer; searchRecord.action = `openProject('${existing.id}')`; }
-        }
-        savedProject = existing;
-      } else {
-        savedProject = {
-          id: draft.id || nextProjectId(),
-          name: draft.name,
-          customer: draft.customer,
-          customerRef: draft.customerRef,
-          engineer: draft.engineer,
-          site: draft.site,
-          status: draft.status,
-          statusType: projectStatusType(draft.status),
-          startDate: draft.startDate,
-          targetDate: draft.targetDate,
-          description: draft.description,
-          pos: 0,
-          progress: 0,
-          health: 100,
-        };
-        PROJECTS.push(savedProject);
-        const actor = projectActorShortName();
-        if (actor && !ADMIN_ASSIGNMENTS.some(item => item.user === actor && item.project === savedProject.name)) {
-          ADMIN_ASSIGNMENTS.push({ user: actor, project: savedProject.name, role: 'Owner' });
-        }
-        const actorUser = ADMIN_USERS.find(user => user.name === actor);
-        if (actorUser && !actorUser.projects.includes(savedProject.name)) actorUser.projects.push(savedProject.name);
-        SEARCH_INDEX.push({ type: 'Project', label: savedProject.name, sub: savedProject.customer, action: `openProject('${savedProject.id}')` });
+      state.projectForm.saving = true;
+      state.projectForm.errors._form = '';
+      renderPage();
+
+      const payload = {
+        name: draft.name,
+        customer: draft.customer,
+        customerRef: draft.customerRef,
+        site: draft.site,
+        status: draft.status,
+        startDate: draft.startDate || null,
+        targetDate: draft.targetDate || null,
+        description: draft.description,
+      };
+      // owner_user_id is a required field on POST /projects -- a Launch
+      // Manager picks it explicitly (the only role allowed to change it,
+      // per engineerLocked below and re-checked server-side), while a
+      // Launch Engineer creating their own project is always their own
+      // owner, so their own session id is sent instead of asking them to
+      // pick themselves from a list of one.
+      if (state.currentRole === 'manager' && draft.ownerUserId) {
+        payload.ownerUserId = Number(draft.ownerUserId);
+      } else if (!isEdit && state.currentRole === 'engineer') {
+        payload.ownerUserId = getCurrentAccount()?.id;
       }
 
-      const changedProjectFields = previousProject ? ['name','customer','customerRef','engineer','site','status','startDate','targetDate','description'].filter(key => String(previousProject[key] || '') !== String(savedProject[key] || '')).map(key => `${key}: ${previousProject[key] || '—'} → ${savedProject[key] || '—'}`) : [];
-      AUDIT_LOGS.unshift({
-        id: `AUD-${10400 + AUDIT_LOGS.length}`,
-        date: new Date().toISOString().slice(0,16).replace('T',' '),
-        user: ROLE_PERSONA[state.currentRole].name,
-        module: 'Projects',
-        action: isEdit ? 'Project updated' : 'Project created',
-        entity: `${savedProject.id} · ${savedProject.name}`,
-        project: savedProject.name,
-        po: '',
-        evidence:'Project master record',
-        details: isEdit ? `Project record updated. ${changedProjectFields.length ? changedProjectFields.join('; ') : 'No field value changed.'}` : `New project created for ${savedProject.customer}; assigned Launch Engineer ${savedProject.engineer}.`,
-      });
-      openProject(savedProject.id,{ replace:true });
-      openModal(isEdit ? 'Project updated' : 'Project created', `${savedProject.id} · ${savedProject.name} was saved successfully and is ready for purchase orders and BOM governance.`);
+      const request = isEdit ? storeUpdateProject(existing.backendId, payload) : storeCreateProject(payload);
+      request
+        .then(savedApiProject => loadProjects().then(() => savedApiProject))
+        .then(savedApiProject => {
+          state.projectForm.saving = false;
+          const savedProject = PROJECTS.find(p => p.backendId === savedApiProject.id) || PROJECTS.find(p => p.id === savedApiProject.code);
+          openProject(savedProject.id, { replace: true });
+          openModal(isEdit ? 'Project updated' : 'Project created', `${savedProject.id} · ${savedProject.name} was saved successfully and is ready for purchase orders and BOM governance.`);
+        })
+        .catch(error => {
+          state.projectForm.saving = false;
+          state.projectForm.errors._form = error.message || 'Could not save this project.';
+          renderPage();
+        });
     }
 
 export function pageProjectForm() {
@@ -240,16 +230,27 @@ export function pageProjectForm() {
       const engineerLocked = state.currentRole !== 'manager';
       const errorClass = key => errors[key] ? 'invalid' : '';
       const errorMessage = key => errors[key] ? `<div class="project-field-error">${errors[key]}</div>` : '';
-      const engineerOptions = [...new Set(['A. Rahal', 'A. Haddad', 'S. Amrani', 'M. Idrissi', draft.engineer].filter(Boolean))];
       const activeCustomers = ADMIN_REFERENCE_LISTS.customers.entries.filter(item => item.status === 'Active');
       const customerOptions = activeCustomers.some(item => item.label === draft.customer)
         ? activeCustomers
         : [{ label:draft.customer, status:'Inactive', references:[draft.customerRef].filter(Boolean) }, ...activeCustomers].filter(item => item.label);
+      const engineersStatus = engineerLocked ? null : ensureAssignableEngineersLoaded();
+      const engineerFieldHtml = engineerLocked
+        ? `<select class="project-input" disabled aria-label="Assigned Launch Engineer"><option>${projectHtmlValue(draft.engineer)}</option></select>`
+        : engineersStatus.loading || (!engineersStatus.loaded && !engineersStatus.error)
+          ? `<select class="project-input" disabled aria-label="Assigned Launch Engineer"><option>Loading Launch Engineers…</option></select>`
+          : engineersStatus.error
+            ? `<select class="project-input" disabled aria-label="Assigned Launch Engineer"><option>Could not load Launch Engineers</option></select>`
+            : `<select class="project-input ${errorClass('engineer')}" onchange="projectForm.draft.ownerUserId=this.value" aria-label="Assigned Launch Engineer">
+                <option value="">Select Launch Engineer</option>
+                ${ASSIGNABLE_ENGINEERS.map(eng => `<option value="${eng.id}" ${String(draft.ownerUserId) === String(eng.id) ? 'selected' : ''}>${projectHtmlValue(eng.fullName)}</option>`).join('')}
+              </select>`;
       return `<div class="project-editor-shell">
         <header class="project-editor-header">
-          <div><h2>${isEdit ? `Edit Project` : 'Create Project'}</h2><span class="mono">${projectHtmlValue(draft.id || 'New project')}</span></div>
+          <div><h2>${isEdit ? `Edit Project` : 'Create Project'}</h2><span class="mono">${projectHtmlValue(draft.id || 'Assigned automatically on save')}</span></div>
         </header>
 
+        ${errors._form ? `<div class="project-editor-lock" style="border-color:var(--danger);color:var(--danger);">${icon('alert','')}<span>${projectHtmlValue(errors._form)}</span></div>` : ''}
         ${identityLocked ? `<div class="project-editor-lock">${icon('lock','')}<span>Project name and customer are locked because ${linkedPos.length} purchase order${linkedPos.length === 1 ? '' : 's'} already reference this project.</span></div>` : ''}
 
         <section class="card project-editor-card">
@@ -257,7 +258,7 @@ export function pageProjectForm() {
           <div class="project-editor-grid">
             <div class="project-editor-field">
               <label>Project ID</label>
-              <input class="project-input" value="${projectHtmlValue(draft.id)}" readonly aria-label="Project ID"/>
+              <input class="project-input" value="${projectHtmlValue(draft.id || 'Assigned automatically')}" readonly aria-label="Project ID"/>
             </div>
             <div class="project-editor-field">
               <label>Project Name <em>*</em></label>
@@ -274,9 +275,7 @@ export function pageProjectForm() {
             </div>
             <div class="project-editor-field">
               <label>Launch Engineer <em>*</em></label>
-              <select class="project-input ${errorClass('engineer')}" ${engineerLocked ? 'disabled' : ''} onchange="projectForm.draft.engineer=this.value" aria-label="Assigned Launch Engineer">
-                ${engineerOptions.map(value => `<option value="${projectHtmlValue(value)}" ${draft.engineer === value ? 'selected' : ''}>${projectHtmlValue(value)}</option>`).join('')}
-              </select>
+              ${engineerFieldHtml}
               ${errorMessage('engineer')}
             </div>
             <div class="project-editor-field full">
@@ -287,8 +286,8 @@ export function pageProjectForm() {
         </section>
 
         <footer class="project-editor-actions">
-          <button class="btn" onclick="cancelProjectForm()">Cancel</button>
-          <button class="btn primary" onclick="saveProjectForm()">${icon('check','')} ${isEdit ? 'Save Project' : 'Create Project'}</button>
+          <button class="btn" ${state.projectForm.saving ? 'disabled' : ''} onclick="cancelProjectForm()">Cancel</button>
+          <button class="btn primary" ${state.projectForm.saving ? 'disabled' : ''} onclick="saveProjectForm()">${icon('check','')} ${state.projectForm.saving ? 'Saving…' : (isEdit ? 'Save Project' : 'Create Project')}</button>
         </footer>
       </div>`;
     }

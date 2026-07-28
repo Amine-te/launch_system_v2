@@ -3,7 +3,7 @@
    ========================================================================== */
 
 import { QUICK_ACTIONS } from './nav-config.js';
-import { NOTIFICATIONS, NOTIF_ICON_COLOR, SEARCH_INDEX } from '../data/mock-data.js';
+import { NOTIFICATIONS, NOTIF_ICON_COLOR, buildSearchIndex } from '../data/mock-data.js';
 import { renderPage } from '../pages/router.js';
 import { state } from '../state.js';
 import { icon } from '../utils/icons.js';
@@ -48,7 +48,7 @@ export function setGlobalSearch(v) { state.globalSearchQuery = v; state.gsOpen =
 export function gsResultsFor(query) {
       if (!query || query.trim().length === 0) return [];
       const q = query.toLowerCase();
-      return SEARCH_INDEX.filter(i => `${i.label} ${i.sub}`.toLowerCase().includes(q)).slice(0, 8);
+      return buildSearchIndex().filter(i => `${i.label} ${i.sub}`.toLowerCase().includes(q)).slice(0, 8);
     }
 
 export function renderGsPanel() {

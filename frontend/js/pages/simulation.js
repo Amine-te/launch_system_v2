@@ -5,7 +5,8 @@
 import { openModal } from '../components/modal.js';
 import { navigate } from '../components/nav-render.js';
 import { uniqueValues } from '../components/shared-tables.js';
-import { AUDIT_LOGS, BOM_USAGE, BOM_VERSION_HISTORY, MATERIALS, POS, PO_LAUNCH_PROGRESS, PO_VERSION_HISTORY, PROJECTS, SIM_PRIORITY_RULES } from '../data/mock-data.js';
+import { AUDIT_LOGS, BOM_USAGE, BOM_VERSION_HISTORY, MATERIALS, POS, PO_LAUNCH_PROGRESS, PO_VERSION_HISTORY, SIM_PRIORITY_RULES } from '../data/mock-data.js';
+import { PROJECTS } from '../data/projects-store.js';
 import { mfgInvalidateLaunchApproval, mfgLaunchFingerprint, mfgMaterialsForSelection, mfgPnLaunchSummary } from './manufacturing-delivery.js';
 import { productionActor } from './purchase-orders.js';
 import { renderPage } from './router.js';

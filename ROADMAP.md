@@ -25,7 +25,7 @@ Simulation needs both, so this roadmap builds M06 and M07 first.
 
 - [x] Step 0 — Foundational Audit Log (folded into Step 1, see note below)
 - [x] M00 — User Management, Authentication, Reference Lists (done — see db.md)
-- [ ] Step 1 — M01 Project Management
+- [x] Step 1 — M01 Project Management
 - [ ] Step 2 — M02 Purchase Order Intake, Extraction, Validation
 - [ ] Step 3 — M03 Purchase Order Storage, Versioning, Comparison
 - [ ] Step 4 — M04 Purchase Order Status Tracking

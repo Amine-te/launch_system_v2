@@ -2,14 +2,17 @@
    mock-data.js
    ========================================================================== */
 
+import { PROJECTS } from './projects-store.js';
 import { THRESHOLD_DEFAULTS } from '../utils/table-state.js';
 
-export const PROJECTS = [
-      { id: 'PRJ-001', name: 'BMW X5', customer: 'BMW Group', customerRef: 'G05 LCI', engineer: 'A. Haddad', site: 'Tangier Plant 2', startDate: '2026-01-12', targetDate: '2026-10-15', description: 'Launch readiness and series preparation for the BMW X5 seat program.', status: 'On Track', statusType: 'success', pos: 3, progress: 72, health: 88 },
-      { id: 'PRJ-002', name: 'Renault Clio V', customer: 'Renault', customerRef: 'BJA Phase 2', engineer: 'S. Amrani', site: 'Tangier Plant 2', startDate: '2026-02-02', targetDate: '2026-09-30', description: 'Controlled launch preparation for the Clio V program.', status: 'At Risk', statusType: 'warning', pos: 2, progress: 41, health: 54 },
-      { id: 'PRJ-003', name: 'Peugeot 208', customer: 'Stellantis', customerRef: 'P21', engineer: 'A. Haddad', site: 'Kenitra Plant', startDate: '2026-03-09', targetDate: '2026-11-20', description: 'Industrial launch project for the Peugeot 208 program.', status: 'Blocked', statusType: 'danger', pos: 1, progress: 18, health: 22 },
-      { id: 'PRJ-004', name: 'Dacia Sandero', customer: 'Renault', customerRef: 'DJF', engineer: 'M. Idrissi', site: 'Tangier Plant 2', startDate: '2025-11-17', targetDate: '2026-08-22', description: 'Launch and ramp-up governance for the Sandero program.', status: 'On Track', statusType: 'success', pos: 4, progress: 88, health: 96 },
-    ];
+// PROJECTS used to be a static mock array here. Projects (SRS M01) are now
+// real, backend-persisted records -- see data/projects-store.js's PROJECTS
+// (fetched from GET /projects, scoped server-side per role) for the live
+// equivalent. Kept out of this file entirely rather than left unused, so
+// nothing can accidentally import the stale fixture again -- same pattern
+// as ADMIN_USERS below. A fresh database starts with none of these; run
+// backend/scripts/seed_projects.py once to restore the same four demo
+// projects this mock used to hardcode.
 
 export const POS = [
       { id: 'PO-00045', project: 'BMW X5', customer: 'BMW Group', version: 'v3', pnCount: 3, status: 'Ready', statusType: 'success', date: '2026-07-08', delivery: '2026-08-15', simStatus: 'Passed', simType: 'success' },
@@ -445,11 +448,11 @@ export const AUDIT_ENTITY_TIMELINE = [
 // entirely rather than left unused, so nothing can accidentally import the
 // stale fixture again.
 
-export const ADMIN_ASSIGNMENTS = [
-      { user:'S. Ait Oubou',project:'Peugeot 208',role:'Responsible Manager' },
-      { user:'A. Rahal',project:'Renault Clio V',role:'Responsible Engineer' },
-      { user:'A. Rahal',project:'BMW X5',role:'Responsible Engineer' },
-    ];
+// ADMIN_ASSIGNMENTS used to be a static, local-only array here (never
+// persisted server-side, reset on every page reload). Project assignments
+// are now real, backend-persisted records -- see data/projects-store.js's
+// PROJECT_ASSIGNMENTS (fetched from GET /project-assignments) for the live
+// equivalent, wired into pages/admin.js's Project Assignments section.
 
 // ADMIN_REFERENCE_LISTS used to be a static mock object here. Reference
 // entries (JIT Customers, Contacts, FGPNs, Receivers, Delivery Methods,
@@ -465,6 +468,13 @@ export const ADMIN_ACTIVITY = [];
 // records (SRS M00-FR-13) -- see data/admin-store.js's ADMIN_LOGIN_EVENTS
 // (fetched from GET /users/login-events).
 
+// Rebuilt on every call rather than cached once at module-eval time --
+// PROJECTS (data/projects-store.js) is now a live store that starts empty
+// and is filled asynchronously after login (see main.js's loadProjects()),
+// so a one-time `const SEARCH_INDEX = buildSearchIndex()` computed here
+// would have permanently missed every project (and anything that loads
+// after it). components/topbar.js's gsResultsFor() calls this fresh on
+// every search instead of reading a stale precomputed constant.
 export function buildSearchIndex() {
       const idx = [];
       PROJECTS.forEach(p => idx.push({ type: 'Project', label: p.name, sub: p.customer, action: `openProject('${p.id}')` }));
@@ -476,8 +486,6 @@ export function buildSearchIndex() {
       INVOICES.forEach(i => idx.push({ type: 'Invoice', label: i.id, sub: i.project, action: `navigate('finance-invoices')` }));
       return idx;
     }
-
-export const SEARCH_INDEX = buildSearchIndex();
 
 export const NOTIFICATIONS = [
       { icon: 'danger', title: 'PO waiting validation', sub: 'PO-2025-013 — Renault Clio V needs review', time: '8 min ago' },

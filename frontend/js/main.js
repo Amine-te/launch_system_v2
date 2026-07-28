@@ -11,6 +11,7 @@ import { ROLE_PERSONA } from './components/nav-config.js';
 import { applyAccountChange, initSidebarState, navigate, renderNav } from './components/nav-render.js';
 import { renderQuickLogin } from './components/quick-login.js';
 import { loadReferenceEntries } from './data/admin-store.js';
+import { loadProjects } from './data/projects-store.js';
 import { renderTopbarWidgets } from './components/topbar.js';
 import { SESSION_EXPIRED_EVENT } from './api/auth.js';
 import { renderPage } from './pages/router.js';
@@ -79,6 +80,17 @@ onAccountChange(account => {
       if (account) {
         applyAccountChange(account);
         showApp();
+        // PROJECTS (SRS M01) is read by nearly every page in the app
+        // (dashboards, materials-stock, simulation, PO/BOM pages, not
+        // just Projects itself) regardless of role, the same reasoning
+        // as loadReferenceEntries() below -- fetch it right on login
+        // rather than waiting for the Projects page specifically to be
+        // visited. (Reference lists have a pre-existing gap here on a
+        // *fresh* login, since this callback path predates today's
+        // account-switcher wiring and only the session-restore branch
+        // below calls loadReferenceEntries() -- out of scope to fix as
+        // part of this step, but not repeated here for PROJECTS.)
+        loadProjects().then(renderAll);
       } else {
         showAuthScreen();
       }
@@ -116,6 +128,7 @@ initAccountSwitcher('authContainer').then(account => {
         // by a page they may never visit. Fire-and-forget; re-render once
         // it lands in case the current page already rendered without it.
         loadReferenceEntries().then(renderAll);
+        loadProjects().then(renderAll);
       } else {
         showAuthScreen();
       }

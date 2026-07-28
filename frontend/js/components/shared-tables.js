@@ -5,7 +5,8 @@
 import { openModal } from './modal.js';
 import { ROLE_PERSONA } from './nav-config.js';
 import { navigate } from './nav-render.js';
-import { ADMIN_ASSIGNMENTS, AUDIT_LOGS, BOM_IMPORT_RECORDS, BOM_USAGE, MATERIALS, PNS, POS, PO_BOM_FILES, PROJECTS, PROJECT_BOM_META } from '../data/mock-data.js';
+import { AUDIT_LOGS, BOM_IMPORT_RECORDS, BOM_USAGE, MATERIALS, PNS, POS, PO_BOM_FILES, PROJECT_BOM_META } from '../data/mock-data.js';
+import { PROJECTS } from '../data/projects-store.js';
 import { poEsc } from '../pages/po-intake.js';
 import { renderPage } from '../pages/router.js';
 import { state } from '../state.js';
@@ -98,22 +99,26 @@ export function materialsBlock(cols) {
     }
 
 export function assignedProjectNames() {
-      const shortName = state.currentRole === 'engineer' ? 'A. Rahal' : state.currentRole === 'manager' ? 'S. Ait Oubou' : '';
-      return new Set(ADMIN_ASSIGNMENTS.filter(a => a.user === shortName).map(a => a.project));
+      // Used elsewhere in the app (e.g. openPnBomUpload's own-project
+      // check) as "projects this user can write to". Now driven by the
+      // backend's real per-request can_write flag (SRS M01-FR-02/06/07,
+      // enforced server-side -- see backend/app/api/routes/projects.py)
+      // instead of matching a hardcoded persona display name against the
+      // old ADMIN_ASSIGNMENTS mock.
+      return new Set(PROJECTS.filter(project => project.canWrite).map(project => project.name));
     }
 
 export function visibleProjects() {
-      if (state.currentRole === 'engineer') {
-        const assigned = assignedProjectNames();
-        return PROJECTS.filter(project => assigned.has(project.name));
-      }
+      // PROJECTS is already scoped server-side for a Launch Engineer
+      // (SRS M01-FR-06/M01-AC-01 -- their GET /projects response only
+      // ever contains their own assigned projects), so there's nothing
+      // left to filter here -- every other role already gets the full
+      // list back from the API too.
       return PROJECTS;
     }
 
 export function canWriteProject(project) {
-      if (state.currentRole === 'plant') return false;
-      if (state.currentRole === 'engineer' || state.currentRole === 'manager') return assignedProjectNames().has(project.name);
-      return can('editRecord') === true;
+      return Boolean(project?.canWrite);
     }
 
 export function writableProjects() { return PROJECTS.filter(project => canWriteProject(project)); }
@@ -122,7 +127,6 @@ export function projectForContext() {
       const contextual = PROJECTS.find(p => p.name === state.openContext.project || p.id === state.openContext.project)
         || PROJECTS.find(p => p.name === POS.find(po => po.id === state.openContext.po)?.project)
         || PROJECTS[0];
-      if (state.currentRole === 'engineer' && !assignedProjectNames().has(contextual.name)) return visibleProjects()[0] || contextual;
       return contextual;
     }
 

@@ -12,12 +12,13 @@
    { ADMIN_USERS, ADMIN_LOGIN_EVENTS } from ...` lines at the top of those
    files change, from data/mock-data.js to here.
 
-   ADMIN_ASSIGNMENTS deliberately stays in data/mock-data.js, not here --
-   the backend has no Project model yet (that's module M01, not built),
-   so there's nothing real to assign a user to. Kept in a visibly
-   separate, still-labeled-mock file so it's obvious at the import site
-   which admin data is real and which is still a placeholder waiting on a
-   backend module that doesn't exist yet.
+   A user's assigned-projects list used to be carried here too (bolted onto
+   each mapped user, sourced from the local-only ADMIN_ASSIGNMENTS mock).
+   Project assignments are now real, backend-persisted records -- see
+   data/projects-store.js's PROJECT_ASSIGNMENTS (GET /project-assignments)
+   -- so pages/admin.js now derives a user's assigned projects live from
+   that store (adminAssignedProjectNames()) instead of this file carrying a
+   denormalized `.projects` copy that could drift out of sync.
    ========================================================================== */
 
 import {
@@ -78,13 +79,7 @@ function replaceArrayContents(target, items) {
   target.push(...items);
 }
 
-// A user's assigned-projects list still comes from the local-only
-// ADMIN_ASSIGNMENTS mock in data/mock-data.js (see the module docstring
-// above) -- carried over here across a reload by full name so re-fetching
-// the account list doesn't wipe out assignments made earlier in the
-// session. This is the one place that store and this one touch.
-function mapUser(apiUser, previousByFullName) {
-  const previous = previousByFullName.get(apiUser.full_name);
+function mapUser(apiUser) {
   return {
     id: apiUser.id,
     name: shortName(apiUser.full_name),
@@ -96,7 +91,6 @@ function mapUser(apiUser, previousByFullName) {
     locked: apiUser.is_locked,
     failedAttempts: apiUser.failed_login_attempts,
     lastLogin: formatTimestamp(apiUser.last_login_at),
-    projects: previous ? previous.projects : [],
   };
 }
 
@@ -109,10 +103,9 @@ function mapUser(apiUser, previousByFullName) {
 export function loadAdminUsers() {
   adminUsersStatus.loading = true;
   adminUsersStatus.error = null;
-  const previousByFullName = new Map(ADMIN_USERS.map(user => [user.fullName, user]));
   return listUsers()
     .then(users => {
-      replaceArrayContents(ADMIN_USERS, users.map(user => mapUser(user, previousByFullName)));
+      replaceArrayContents(ADMIN_USERS, users.map(mapUser));
       adminUsersStatus.loaded = true;
     })
     .catch(error => {

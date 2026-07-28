@@ -5,7 +5,8 @@
 import { openModal } from '../components/modal.js';
 import { navigate, navigateBack } from '../components/nav-render.js';
 import { canWriteProject, pnsForPo, uniqueValues, writableProjects } from '../components/shared-tables.js';
-import { AUDIT_LOGS, BOM_USAGE, MATERIALS, MFG_DELIVERIES, POS, PO_STATUS_FLOW, PROJECTS } from '../data/mock-data.js';
+import { AUDIT_LOGS, BOM_USAGE, MATERIALS, MFG_DELIVERIES, POS, PO_STATUS_FLOW } from '../data/mock-data.js';
+import { PROJECTS } from '../data/projects-store.js';
 import { custDeliveryCanBeDeleted } from './customer-delivery.js';
 import { poEsc } from './po-intake.js';
 import { workspaceTabs } from './projects.js';

@@ -5,7 +5,8 @@
 import { openModal } from '../components/modal.js';
 import { navigate } from '../components/nav-render.js';
 import { filterMaterials, materialsToolbarHtml } from '../components/shared-tables.js';
-import { AUDIT_LOGS, MATERIALS, PROJECTS } from '../data/mock-data.js';
+import { AUDIT_LOGS, MATERIALS } from '../data/mock-data.js';
+import { PROJECTS } from '../data/projects-store.js';
 import { renderAll } from '../main.js';
 import { poEsc } from './po-intake.js';
 import { completeAuditEvents, productionActor, traceabilityWorkspace } from './purchase-orders.js';
